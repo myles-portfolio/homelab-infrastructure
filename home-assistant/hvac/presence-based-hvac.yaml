@@ -1,0 +1,57 @@
+alias: Presence Based HVAC Control
+mode: single
+
+triggers:
+  - trigger: zone.left
+    target:
+      entity_id: person.primary_resident
+    options:
+      for:
+        hours: 0
+        minutes: 30
+        seconds: 0
+      zone: zone.neighborhood
+    id: neighborhood_left
+
+  - trigger: zone.entered
+    target:
+      entity_id: person.primary_resident
+    options:
+      for: "00:00:00"
+      zone: zone.neighborhood
+    id: neighborhood_entered
+
+conditions:
+  - condition: time
+    after: "06:15:00"
+    before: "15:30:00"
+    weekday:
+      - mon
+      - tue
+      - wed
+      - thu
+      - fri
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - neighborhood_left
+        sequence:
+          - action: climate.set_temperature
+            target:
+              entity_id: climate.aeolus_thermostat
+            data:
+              temperature: 78
+
+      - conditions:
+          - condition: trigger
+            id:
+              - neighborhood_entered
+        sequence:
+          - action: climate.set_temperature
+            target:
+              entity_id: climate.aeolus_thermostat
+            data:
+              temperature: 72
