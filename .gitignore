@@ -1,0 +1,39 @@
+# Secrets and environment files
+.env
+.env.*
+*.env
+secrets.yaml
+**/secrets.yaml
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Home Assistant operational data
+.storage/
+**/.storage/
+home-assistant_v2.db
+home-assistant_v2.db-*
+*.db
+*.db-shm
+*.db-wal
+backups/
+**/backups/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# Archives and exports
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+
+# Editor metadata
+.vscode/
+.idea/
