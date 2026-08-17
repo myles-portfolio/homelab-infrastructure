@@ -26,7 +26,7 @@ This prevents guests from being omitted simply because they were missing from an
 | VM 103 | Monitoring | Ubuntu, Docker, Prometheus, Grafana, NUT exporter, QEMU Guest Agent |
 | CT 104 | Password manager | OS packages plus application container refresh and version validation |
 | CT 105 | DNS / filtering | OS packages plus DNS application validation |
-| VM 106 | Development workload | OS packages plus application-specific service validation |
+| VM 106 | Development workload | Ubuntu, PostgreSQL, application database backup and query validation |
 | VM 107 | Home automation | Home Assistant-specific maintenance and integration validation |
 
 ## Maintenance principles
@@ -50,8 +50,10 @@ Examples of service-specific validation include:
 * DNS resolves expected records
 * password manager web and extension access succeeds
 * monitoring targets are healthy and dashboards load
+* PostgreSQL accepts application database queries after maintenance
 * Home Assistant integrations, automations, and dashboards remain operational
 
 ## Runbooks
 
 * [Monitoring VM maintenance](runbooks/monitoring-vm-maintenance.md)
+* [Development VM maintenance](runbooks/development-vm-maintenance.md)
