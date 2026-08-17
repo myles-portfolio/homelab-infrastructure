@@ -24,10 +24,10 @@ This prevents guests from being omitted simply because they were missing from an
 | CT 101 | File services | OS packages, file-sharing services, client validation |
 | CT 102 | Media server | Preserve intentional stopped state when applicable |
 | VM 103 | Monitoring | Ubuntu, Docker, Prometheus, Grafana, NUT exporter, QEMU Guest Agent |
-| CT 104 | Password manager | OS packages plus application container refresh and version validation |
-| CT 105 | DNS / filtering | OS packages plus DNS application validation |
+| CT 104 | Password manager | OS packages plus Vaultwarden image refresh, recreation, and client validation |
+| CT 105 | DNS / filtering | OS packages plus Pi-hole application and DNS validation |
 | VM 106 | Development workload | Ubuntu, PostgreSQL, application database backup and query validation |
-| VM 107 | Home automation | Home Assistant-specific maintenance and integration validation |
+| VM 107 | Home automation | Home Assistant-specific maintenance, backup, and integration validation |
 
 ## Maintenance principles
 
@@ -51,9 +51,13 @@ Examples of service-specific validation include:
 * password manager web and extension access succeeds
 * monitoring targets are healthy and dashboards load
 * PostgreSQL accepts application database queries after maintenance
-* Home Assistant integrations, automations, and dashboards remain operational
+* Home Assistant integrations, automations, dashboards, and backup locations remain operational
 
 ## Runbooks
 
+* [File services container maintenance](runbooks/fileshare-container-maintenance.md)
 * [Monitoring VM maintenance](runbooks/monitoring-vm-maintenance.md)
+* [Vaultwarden container maintenance](runbooks/vaultwarden-container-maintenance.md)
+* [Pi-hole container maintenance](runbooks/pihole-container-maintenance.md)
 * [Development VM maintenance](runbooks/development-vm-maintenance.md)
+* [Home Assistant VM maintenance](runbooks/home-assistant-vm-maintenance.md)
