@@ -11,13 +11,14 @@ If you are reviewing this repository as a portfolio, these are the best entry po
 1. **Architecture:** [`architecture/overview.md`](architecture/overview.md) provides the sanitized system topology, workload roles, backup model, and design principles.
 2. **Systems operations:** [`proxmox/README.md`](proxmox/README.md) explains the maintenance model and links to workload-specific runbooks.
 3. **Networking:** [`networking/README.md`](networking/README.md) documents DNS, split DNS, reverse-proxy patterns, dependencies, and troubleshooting.
-4. **Monitoring:** [`monitoring/README.md`](monitoring/README.md) explains the Prometheus, Grafana, and NUT observability model.
-5. **Security:** [`security/README.md`](security/README.md) describes exposure reduction, service accounts, secrets handling, backup resilience, and hardening priorities.
-6. **Automation case study:** [`home-assistant/hvac/README.md`](home-assistant/hvac/README.md) documents a presence-aware HVAC control system built in Home Assistant.
-7. **Change management:** [`change-management/README.md`](change-management/README.md) describes the lightweight change-control framework used throughout the lab.
-8. **Detailed change examples:** [`change-management/examples/`](change-management/examples/) contains deeper records showing problem analysis, implementation, validation, rollback, and lessons learned.
-9. **History:** [`CHANGELOG.md`](CHANGELOG.md) shows how the environment has evolved over time.
-10. **Planned work:** [`ROADMAP.md`](ROADMAP.md) tracks future infrastructure and security improvements.
+4. **Monitoring:** [`monitoring/README.md`](monitoring/README.md) explains the Prometheus, Grafana, exporter, and alerting model.
+5. **Backup and recovery:** [`backup-recovery/README.md`](backup-recovery/README.md) documents the layered recovery model across snapshots, application backups, logical database dumps, and network backup copies.
+6. **Security:** [`security/README.md`](security/README.md) describes exposure reduction, service accounts, secrets handling, backup resilience, and hardening priorities.
+7. **Automation case study:** [`home-assistant/hvac/README.md`](home-assistant/hvac/README.md) documents a presence-aware HVAC control system built in Home Assistant.
+8. **Change management:** [`change-management/README.md`](change-management/README.md) describes the lightweight change-control framework used throughout the lab.
+9. **Detailed change examples:** [`change-management/examples/`](change-management/examples/) contains deeper records showing problem analysis, implementation, validation, rollback, and lessons learned.
+10. **History:** [`CHANGELOG.md`](CHANGELOG.md) shows how the environment has evolved over time.
+11. **Planned work:** [`ROADMAP.md`](ROADMAP.md) tracks future infrastructure and security improvements.
 
 ## What this repository demonstrates
 
@@ -148,9 +149,23 @@ See:
 
 ### Monitoring and observability
 
-Prometheus, Grafana, and NUT exporter run on a dedicated monitoring VM. Monitoring health is validated in layers so an available dashboard is not treated as proof that metric collection is healthy.
+Prometheus, Grafana, Node Exporter, the PVE exporter, and the NUT exporter provide the current monitoring foundation. Alertmanager is the selected next step for notification routing and alert delivery.
 
 See [`monitoring/README.md`](monitoring/README.md) and [`monitoring/alerting-roadmap.md`](monitoring/alerting-roadmap.md).
+
+### Backup and recovery
+
+The backup model uses multiple recovery layers so each failure can be addressed at the narrowest practical scope.
+
+Examples include:
+
+* short-lived Proxmox snapshots for fast VM rollback
+* Home Assistant local and external network backups
+* PostgreSQL logical dumps for database-level recovery
+* Docker persistent storage for stateful application data
+* dedicated Samba storage for backup copies outside protected workloads
+
+See [`backup-recovery/README.md`](backup-recovery/README.md) for the architecture and recovery decision model.
 
 ### Change management in practice
 
@@ -169,6 +184,11 @@ These examples document the problem, scope, risk, implementation, validation evi
 ```text
 architecture/
   overview.md
+
+backup-recovery/
+  README.md
+  diagrams/
+    backup-recovery-architecture.png
 
 change-management/
   README.md
@@ -189,6 +209,8 @@ home-assistant/
 monitoring/
   README.md
   alerting-roadmap.md
+  diagrams/
+    monitoring-diagram.png
 
 networking/
   README.md
@@ -238,9 +260,10 @@ A few principles recur throughout this environment:
 | Virtualization | Proxmox VE, KVM, LXC, snapshots, QEMU Guest Agent |
 | Linux operations | Ubuntu, Debian-based package management, systemd, SSH |
 | Containers | Docker, Docker Compose, persistent volumes |
-| Observability | Prometheus, Grafana, NUT exporter |
+| Observability | Prometheus, Grafana, Node Exporter, PVE exporter, NUT exporter, Alertmanager roadmap |
 | Data | PostgreSQL, logical backups, query validation |
 | Network services | Pi-hole, split DNS, Samba, reverse proxy, TLS |
+| Backup and recovery | Proxmox snapshots, Home Assistant backups, Samba backup copies, PostgreSQL dumps |
 | Security | Service accounts, exposure reduction, trusted proxies, secrets handling, recovery controls |
 | Identity and secrets | Vaultwarden, dedicated service identities |
 | Home automation | Home Assistant OS, HACS, Zigbee, climate automation |
