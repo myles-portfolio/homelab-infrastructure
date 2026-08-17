@@ -10,11 +10,14 @@ If you are reviewing this repository as a portfolio, these are the best entry po
 
 1. **Architecture:** [`architecture/overview.md`](architecture/overview.md) provides the sanitized system topology, workload roles, backup model, and design principles.
 2. **Systems operations:** [`proxmox/README.md`](proxmox/README.md) explains the maintenance model and links to workload-specific runbooks.
-3. **Automation case study:** [`home-assistant/hvac/README.md`](home-assistant/hvac/README.md) documents a presence-aware HVAC control system built in Home Assistant.
-4. **Change management:** [`change-management/README.md`](change-management/README.md) describes the lightweight change-control framework used throughout the lab.
-5. **Detailed change examples:** [`change-management/examples/`](change-management/examples/) contains deeper records showing problem analysis, implementation, validation, rollback, and lessons learned.
-6. **History:** [`CHANGELOG.md`](CHANGELOG.md) shows how the environment has evolved over time.
-7. **Planned work:** [`ROADMAP.md`](ROADMAP.md) tracks future infrastructure and security improvements.
+3. **Networking:** [`networking/README.md`](networking/README.md) documents DNS, split DNS, reverse-proxy patterns, dependencies, and troubleshooting.
+4. **Monitoring:** [`monitoring/README.md`](monitoring/README.md) explains the Prometheus, Grafana, and NUT observability model.
+5. **Security:** [`security/README.md`](security/README.md) describes exposure reduction, service accounts, secrets handling, backup resilience, and hardening priorities.
+6. **Automation case study:** [`home-assistant/hvac/README.md`](home-assistant/hvac/README.md) documents a presence-aware HVAC control system built in Home Assistant.
+7. **Change management:** [`change-management/README.md`](change-management/README.md) describes the lightweight change-control framework used throughout the lab.
+8. **Detailed change examples:** [`change-management/examples/`](change-management/examples/) contains deeper records showing problem analysis, implementation, validation, rollback, and lessons learned.
+9. **History:** [`CHANGELOG.md`](CHANGELOG.md) shows how the environment has evolved over time.
+10. **Planned work:** [`ROADMAP.md`](ROADMAP.md) tracks future infrastructure and security improvements.
 
 ## What this repository demonstrates
 
@@ -25,8 +28,10 @@ If you are reviewing this repository as a portfolio, these are the best entry po
 * PostgreSQL backup and validation
 * Home Assistant automation and appliance maintenance
 * Samba-based network storage and dedicated service accounts
-* DNS, reverse-proxy, and TLS architecture
+* DNS, split DNS, reverse-proxy, and TLS architecture
+* Service dependency mapping and layered network troubleshooting
 * Workload-specific backup and rollback design
+* Security hardening and exposure reduction patterns
 * Change management and maintenance documentation
 * Validation of application health beyond package-manager success
 * Public technical documentation with deliberate security sanitization
@@ -88,6 +93,24 @@ Examples include:
 
 See [`proxmox/`](proxmox/) for the operational model and runbooks.
 
+### Networking and dependency isolation
+
+The networking section documents the relationship between local DNS, reverse proxy, TLS, backend applications, and dependent services.
+
+The troubleshooting model works from the outside inward so symptoms such as "the site is down" can be isolated to DNS, connectivity, certificate, proxy, application, or dependency failures before changes are made.
+
+See:
+
+* [`networking/README.md`](networking/README.md)
+* [`networking/service-dependencies.md`](networking/service-dependencies.md)
+* [`networking/network-troubleshooting-runbook.md`](networking/network-troubleshooting-runbook.md)
+
+### Monitoring and observability
+
+Prometheus, Grafana, and NUT exporter run on a dedicated monitoring VM. Monitoring health is validated in layers so an available dashboard is not treated as proof that metric collection is healthy.
+
+See [`monitoring/README.md`](monitoring/README.md) and [`monitoring/alerting-roadmap.md`](monitoring/alerting-roadmap.md).
+
 ### Change management in practice
 
 The lab uses a lightweight change-management model designed to preserve technical intent without introducing unnecessary administrative overhead.
@@ -122,6 +145,17 @@ home-assistant/
     presence-based-hvac.yaml
     weekly-schedule-design.md
 
+monitoring/
+  README.md
+  alerting-roadmap.md
+
+networking/
+  README.md
+  dns-and-split-dns.md
+  network-troubleshooting-runbook.md
+  reverse-proxy-pattern.md
+  service-dependencies.md
+
 proxmox/
   README.md
   runbooks/
@@ -131,6 +165,9 @@ proxmox/
     monitoring-vm-maintenance.md
     pihole-container-maintenance.md
     vaultwarden-container-maintenance.md
+
+security/
+  README.md
 
 CHANGELOG.md
 ROADMAP.md
@@ -149,7 +186,9 @@ A few principles recur throughout this environment:
 5. Use dedicated service accounts for machine-to-machine access when practical.
 6. Remove temporary rollback artifacts after successful validation.
 7. Treat application updates and guest operating-system updates as separate maintenance layers when appropriate.
-8. Keep public documentation useful to reviewers without exposing the live environment unnecessarily.
+8. Troubleshoot dependencies before restarting services or changing configuration.
+9. Reduce exposure and trust boundaries wherever practical.
+10. Keep public documentation useful to reviewers without exposing the live environment unnecessarily.
 
 ## Current technology areas
 
@@ -161,7 +200,8 @@ A few principles recur throughout this environment:
 | Observability | Prometheus, Grafana, NUT exporter |
 | Data | PostgreSQL, logical backups, query validation |
 | Network services | Pi-hole, split DNS, Samba, reverse proxy, TLS |
-| Identity and secrets | Vaultwarden, dedicated service accounts |
+| Security | Service accounts, exposure reduction, trusted proxies, secrets handling, recovery controls |
+| Identity and secrets | Vaultwarden, dedicated service identities |
 | Home automation | Home Assistant OS, HACS, Zigbee, climate automation |
 | Operations | Change records, maintenance runbooks, rollback planning, validation |
 
@@ -175,4 +215,4 @@ See [`ROADMAP.md`](ROADMAP.md) for the current backlog.
 
 The public repository is a curated documentation source, not a mirror of the live homelab configuration. Configuration examples are reviewed and sanitized before publication.
 
-See [`SECURITY.md`](SECURITY.md) for publication rules.
+See [`security/README.md`](security/README.md) for the homelab security model and [`SECURITY.md`](SECURITY.md) for publication rules.
