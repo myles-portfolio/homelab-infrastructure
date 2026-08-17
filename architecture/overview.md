@@ -4,43 +4,98 @@
 
 This document provides a sanitized architectural view of the homelab represented in this repository. It is intentionally descriptive rather than exhaustive. Exact IP addressing, credentials, geofence boundaries, private DNS names, externally reachable endpoints, and other sensitive details are excluded.
 
-## Platform model
+## Operations-focused architecture
 
-The environment is centered on a Proxmox VE host running a mix of Linux containers and virtual machines.
+The diagram below shows the major Proxmox guests, primary application components, and selected dependency paths used for operations, maintenance, and troubleshooting.
 
-```text
-                           Internet
-                              |
-                              v
-                        Home network
-                              |
-                 +------------+------------+
-                 |                         |
-                 v                         v
-          User / IoT devices         Proxmox VE host
-                                           |
-          +----------------+---------------+----------------+----------------+
-          |                |               |                |                |
-          v                v               v                v                v
-     File services     Monitoring      Password mgr      DNS/filtering   Home Assistant
-        CT 101            VM 103          CT 104            CT 105          VM 107
-                           |
-                    +------+------+ 
-                    |             |
-                    v             v
-                Prometheus      Grafana
-                    |
-                    v
-               NUT exporter
+```mermaid
+flowchart TB
+    Internet[(Internet)]
+    Clients[Client Devices<br/>PCs, phones, tablets, IoT clients]
+    Proxmox[Proxmox VE Host]
 
-                                   Development VM
-                                      VM 106
-                                        |
-                                        v
-                                   PostgreSQL
+    subgraph CT101[CT 101 • File Services]
+        Samba[Samba / CIFS]
+        HABackups[HA Backup Share]
+    end
+
+    subgraph CT102[CT 102 • Media]
+        Plex[Plex]
+    end
+
+    subgraph VM103[VM 103 • Monitoring]
+        Prometheus[Prometheus]
+        Grafana[Grafana]
+        NUTExporter[NUT Exporter]
+    end
+
+    subgraph CT104[CT 104 • Password Manager]
+        Vaultwarden[Vaultwarden]
+    end
+
+    subgraph CT105[CT 105 • DNS / Filtering]
+        PiHole[Pi-hole]
+    end
+
+    subgraph VM106[VM 106 • Development]
+        DevWorkload[Development Workload]
+        Postgres[(PostgreSQL)]
+    end
+
+    subgraph VM107[VM 107 • Home Assistant]
+        HA[Home Assistant OS]
+        HVAC[Presence-aware HVAC]
+        Zigbee[Zigbee / IoT]
+        Alarm[Alarm.com Integration]
+        Backups[Backup Subsystem]
+    end
+
+    Internet --> Clients
+
+    Clients --> PiHole
+    Clients --> Vaultwarden
+    Clients --> Grafana
+    Clients --> HA
+    Clients --> Samba
+
+    Proxmox --> CT101
+    Proxmox --> CT102
+    Proxmox --> VM103
+    Proxmox --> CT104
+    Proxmox --> CT105
+    Proxmox --> VM106
+    Proxmox --> VM107
+
+    PiHole --> Vaultwarden
+    PiHole --> HA
+    PiHole --> Grafana
+
+    HA --> HVAC
+    HA --> Zigbee
+    HA --> Alarm
+    HA --> Backups
+    Backups --> HABackups
+    HABackups --> Samba
+
+    Prometheus --> NUTExporter
+    Grafana --> Prometheus
+
+    DevWorkload --> Postgres
 ```
 
-A media-server container is also present but may intentionally remain stopped when not in use.
+Operations-focused view showing guest roles, major service components, and selected dependency paths.
+
+### Legend
+
+| Symbol / Label | Meaning |
+|---|---|
+| `CT` | Linux container |
+| `VM` | Virtual machine |
+| Cylinder shape | Persistent data store |
+| Arrow | Primary dependency or service flow |
+| Nested nodes | Applications or services hosted inside a guest |
+
+The diagram is intentionally sanitized. Exact IP addresses, domains, ports, credentials, and other sensitive details are omitted.
 
 ## Core infrastructure domains
 
