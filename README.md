@@ -36,11 +36,52 @@ If you are reviewing this repository as a portfolio, these are the best entry po
 * Validation of application health beyond package-manager success
 * Public technical documentation with deliberate security sanitization
 
-## Architecture
+## Homelab architecture
 
-The environment is centered on a Proxmox VE host running dedicated workloads for file services, monitoring, password management, DNS and filtering, development, and home automation.
+The environment is centered on a Proxmox VE host that provides virtualization for the major infrastructure and application domains in the lab.
 
-See [`architecture/overview.md`](architecture/overview.md) for the sanitized architecture and operating model.
+```mermaid
+flowchart TB
+    Internet[(Internet)]
+    Clients[Client Devices]
+    Proxmox[Proxmox VE Host]
+
+    FileServices[File Services]
+    Monitoring[Monitoring]
+    Passwords[Password Management]
+    DNS[DNS and Filtering]
+    Development[Development]
+    HomeAutomation[Home Automation]
+    Media[Media Services]
+
+    Internet --> Clients
+
+    Proxmox --> FileServices
+    Proxmox --> Monitoring
+    Proxmox --> Passwords
+    Proxmox --> DNS
+    Proxmox --> Development
+    Proxmox --> HomeAutomation
+    Proxmox --> Media
+
+    Clients --> FileServices
+    Clients --> Monitoring
+    Clients --> Passwords
+    Clients --> DNS
+    Clients --> HomeAutomation
+    Clients --> Media
+
+    DNS --> Passwords
+    DNS --> HomeAutomation
+    DNS --> Monitoring
+
+    HomeAutomation --> FileServices
+    Monitoring --> Proxmox
+```
+
+High-level view of the major functional domains hosted on the Proxmox platform.
+
+For a more detailed operational view, see [`architecture/overview.md`](architecture/overview.md).
 
 ## Featured case studies
 
