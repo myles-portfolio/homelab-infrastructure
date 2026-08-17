@@ -12,13 +12,13 @@ The environment uses a private home LAN with Proxmox-hosted services and Home As
 
 Key networking functions include:
 
-* local DNS and filtering through Pi-hole
-* split DNS for internal service names
-* reverse-proxy based HTTPS access for selected services
-* Samba/CIFS for network storage
-* local-only service communication where practical
-* trusted-proxy handling in Home Assistant
-* no requirement for direct inbound WAN port forwarding for internally hosted web services documented here
+- local DNS and filtering through Pi-hole
+- split DNS for internal service names
+- reverse-proxy based HTTPS access for selected services
+- Samba/CIFS for network storage
+- local-only service communication where practical
+- trusted-proxy handling in Home Assistant
+- no requirement for direct inbound WAN port forwarding for internally hosted web services documented here
 
 ## Logical flow
 
@@ -40,6 +40,14 @@ Reverse proxy
     v
 Backend application
 ```
+
+## Network and service flow
+
+The following diagram shows the sanitized relationship between client devices, DNS, reverse proxy, core services, and selected external integrations.
+
+![Network and service flow](diagrams/network-service-flow.png)
+
+The diagram is intentionally sanitized and does not expose the live environment's real domains, IP addresses, or other sensitive addressing details.
 
 ## Design principles
 
@@ -124,12 +132,12 @@ This layered validation helps distinguish DNS, proxy, certificate, network, and 
 
 The public repository intentionally excludes:
 
-* exact private IP assignments
-* public service domains tied to the live environment
-* router management details
-* API credentials
-* certificate-provider tokens
-* firewall-rule inventories
-* exact trusted-proxy subnets
+- exact private IP assignments
+- public service domains tied to the live environment
+- router management details
+- API credentials
+- certificate-provider tokens
+- firewall-rule inventories
+- exact trusted-proxy subnets
 
 The architecture remains useful as a portfolio artifact without exposing a detailed attack map.
