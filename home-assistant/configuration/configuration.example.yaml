@@ -1,0 +1,53 @@
+# Sanitized Home Assistant configuration example
+#
+# This file demonstrates selected configuration patterns used by the homelab.
+# It is not a complete copy of the live configuration.yaml.
+
+frontend:
+  themes: !include_dir_merge_named themes
+
+lovelace:
+  dashboards:
+    command-center:
+      mode: yaml
+      filename: command-center.yaml
+      title: Command Center
+      icon: mdi:home-analytics
+      show_in_sidebar: true
+
+utility_meter:
+  solar_energy_daily:
+    source: sensor.solar_energy_total
+    cycle: daily
+    periodically_resetting: false
+    always_available: true
+
+  home_energy_daily:
+    source: sensor.home_energy_total
+    cycle: daily
+    periodically_resetting: false
+    always_available: true
+
+  grid_import_daily:
+    source: sensor.grid_import_total
+    cycle: daily
+    periodically_resetting: false
+    always_available: true
+
+  grid_export_daily:
+    source: sensor.grid_export_total
+    cycle: daily
+    periodically_resetting: false
+    always_available: true
+
+  battery_charge_daily:
+    source: sensor.battery_charge_total
+    cycle: daily
+    periodically_resetting: false
+    always_available: true
+
+  battery_discharge_daily:
+    source: sensor.battery_discharge_total
+    cycle: daily
+    periodically_resetting: false
+    always_available: true
