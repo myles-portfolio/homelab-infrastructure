@@ -2,6 +2,46 @@
 
 This changelog is a curated, sanitized history of material homelab changes. It is derived from the internal operational log but intentionally omits exact private IPs, public-facing domains, personal entity identifiers, and other sensitive implementation details.
 
+## 2026-08-17
+
+### Built YAML-managed Home Assistant Command Center dashboard
+
+Created and implemented a new YAML-managed Home Assistant dashboard organized around three functional domains: quick actions and home state, climate and weather, and energy monitoring.
+
+Key changes:
+
+* introduced a three-column Sections-based layout
+* added state-aware home, security, door, garage, lighting, and routine controls
+* grouped time, thermostat control, indoor and outdoor environmental data, weather, climate trends, and HVAC scheduling into a single climate domain
+* added energy production, household load, grid activity, battery state, daily energy values, and trend visualizations
+* retained the existing astronomical background while improving information density and visual hierarchy
+
+### Added custom Home Assistant dashboard theme and frontend components
+
+Expanded the Home Assistant frontend stack and standardized the dashboard visual language.
+
+Key changes:
+
+* installed Mushroom, card-mod, button-card, and ApexCharts Card through HACS
+* created a custom Command Center dark theme
+* standardized rounded card surfaces, typography, borders, transparency, and semantic state colors
+* used custom cards for compact controls, state-aware presentation, and time-series visualization
+
+### Added daily FranklinWH energy telemetry
+
+Created daily Home Assistant utility meters from cumulative FranklinWH energy sensors so the dashboard can distinguish instantaneous power from daily energy usage.
+
+Daily metrics now cover:
+
+* solar generation
+* household consumption
+* grid import
+* grid export
+* battery charge energy
+* battery discharge energy
+
+The utility meters use daily cycles and are configured for cumulative source meters that do not reset themselves.
+
 ## 2026-08-16
 
 ### Added presence-aware HVAC control
