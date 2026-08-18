@@ -1,0 +1,59 @@
+Command Center:
+  primary-color: "#7AA2F7"
+  accent-color: "#BB9AF7"
+
+  primary-background-color: "#111318"
+  secondary-background-color: "#181A1F"
+
+  card-background-color: "rgba(24, 26, 31, 0.88)"
+  ha-card-background: "rgba(24, 26, 31, 0.88)"
+
+  primary-text-color: "#F5F7FA"
+  secondary-text-color: "rgba(245, 247, 250, 0.62)"
+  disabled-text-color: "rgba(245, 247, 250, 0.35)"
+
+  divider-color: "rgba(255, 255, 255, 0.06)"
+
+  ha-card-border-radius: "18px"
+  ha-card-border-width: "1px"
+  ha-card-border-color: "rgba(255, 255, 255, 0.06)"
+  ha-card-box-shadow: "none"
+
+  mush-spacing: "10px"
+  mush-title-padding: "20px 8px 8px"
+  mush-title-spacing: "8px"
+  mush-title-font-size: "24px"
+  mush-title-font-weight: "600"
+  mush-title-line-height: "30px"
+
+  mush-subtitle-font-size: "15px"
+  mush-subtitle-font-weight: "500"
+
+  mush-card-primary-font-size: "14px"
+  mush-card-primary-font-weight: "600"
+  mush-card-secondary-font-size: "12px"
+  mush-card-secondary-font-weight: "400"
+  mush-card-secondary-color: "rgba(245, 247, 250, 0.55)"
+
+  mush-chip-height: "34px"
+  mush-chip-border-radius: "17px"
+  mush-control-border-radius: "14px"
+  mush-control-height: "40px"
+
+  state-light-active-color: "#FFD166"
+  state-climate-cool-color: "#7AA2F7"
+  state-climate-heat-color: "#FF9E64"
+  state-cover-open-color: "#E0AF68"
+
+  green-color: "#9ECE6A"
+  red-color: "#F7768E"
+  orange-color: "#FF9E64"
+  amber-color: "#E0AF68"
+  blue-color: "#7AA2F7"
+  cyan-color: "#5DE4C7"
+  purple-color: "#BB9AF7"
+  lime-color: "#9ECE6A"
+
+  sidebar-background-color: "#15171C"
+  app-header-background-color: "#111318"
+  app-header-text-color: "#F5F7FA"
