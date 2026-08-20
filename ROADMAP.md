@@ -21,7 +21,7 @@ Success criteria:
 
 ### Checkmk infrastructure monitoring
 
-Evaluate and deploy Checkmk Raw Edition as an infrastructure and service-monitoring layer alongside the existing Prometheus and Grafana observability stack.
+Evaluate and deploy Checkmk Community as an infrastructure and service-monitoring layer alongside the existing Prometheus and Grafana observability stack.
 
 The intended deployment is a dedicated Debian virtual machine on Proxmox with an initial allocation of 2 vCPU, 4 GB RAM, and approximately 32 GB of storage.
 
