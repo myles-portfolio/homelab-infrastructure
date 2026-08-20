@@ -6,7 +6,7 @@ This section documents the sanitized monitoring architecture used by the homelab
 
 The current metrics stack is hosted on a dedicated Ubuntu virtual machine and uses Docker Compose to run Prometheus, Grafana, and a NUT exporter. Prometheus also scrapes host-level metrics from the Proxmox VE host through Node Exporter and a Proxmox-specific exporter. Alertmanager and Prometheus alert rules are the next implementation step for metrics-based alerting.
 
-Checkmk Raw Edition is also planned as a complementary infrastructure and service-monitoring layer. It is not intended to replace Prometheus or Grafana. The planned role for Checkmk is host state, service state, Linux agent monitoring, SNMP monitoring, and other operational checks where an infrastructure-oriented monitoring model is more useful than time-series analysis.
+Checkmk Community is also planned as a complementary infrastructure and service-monitoring layer. It is not intended to replace Prometheus or Grafana. The planned role for Checkmk is host state, service state, Linux agent monitoring, SNMP monitoring, and other operational checks where an infrastructure-oriented monitoring model is more useful than time-series analysis.
 
 See [`checkmk-plan.md`](checkmk-plan.md) for the deployment and evaluation plan.
 
@@ -132,7 +132,7 @@ Alertmanager will handle grouping, deduplication, silencing, and routing after a
 
 ### Checkmk
 
-Checkmk Raw Edition is planned for deployment on a dedicated Debian virtual machine.
+Checkmk Community is planned for deployment on a dedicated Debian virtual machine.
 
 Its intended responsibilities include:
 
