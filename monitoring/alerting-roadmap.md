@@ -8,6 +8,8 @@ The selected implementation path uses Prometheus alert rules for condition evalu
 
 The goal is to expand monitoring coverage gradually while keeping alerts actionable and avoiding unnecessary noise.
 
+Checkmk Community is also planned as a complementary infrastructure and service-monitoring platform. Its notification capabilities will be introduced deliberately so that overlapping conditions do not produce duplicate alerts. See [`checkmk-plan.md`](checkmk-plan.md) for the Checkmk deployment plan and alert ownership model.
+
 ## Target architecture
 
 ```text
@@ -28,6 +30,8 @@ Prometheus
 ```
 
 Grafana remains the primary visualization layer and queries Prometheus for dashboards and analysis. Alertmanager is a separate operational component responsible for notification handling.
+
+Where Checkmk monitors the same infrastructure condition, one platform should be designated as the authoritative notification path. The intent is to use Alertmanager for metrics-based conditions and Checkmk for infrastructure or service-state conditions where that distinction is operationally useful.
 
 See [`README.md`](README.md) for the monitoring architecture diagram.
 
@@ -183,6 +187,18 @@ A simple severity model will be used initially:
 
 Additional severity levels should be added only if operational need justifies them.
 
+## Alert ownership
+
+As Checkmk is introduced, each monitored condition should have a defined notification owner.
+
+Examples:
+
+* sustained resource thresholds may remain owned by Prometheus and Alertmanager
+* Linux service state, filesystem state, and SNMP device state may be owned by Checkmk
+* external service availability may be assigned to either platform based on which check provides the clearest operational signal
+
+The same condition should not normally notify through both platforms.
+
 ## Alerting principles
 
 1. **Alert on actionable conditions.** Every enabled alert should correspond to an expected operator decision or action.
@@ -193,6 +209,7 @@ Additional severity levels should be added only if operational need justifies th
 6. **Test the entire path.** Rule evaluation alone is not sufficient; Alertmanager routing and notification delivery must also be validated.
 7. **Review alert quality.** Noisy, redundant, or non-actionable alerts should be tuned or removed.
 8. **Keep secrets private.** Notification credentials, tokens, and addresses are excluded from public configuration examples.
+9. **Define alert ownership across monitoring platforms.** Overlapping checks should have one authoritative notification path.
 
 ## Validation requirements
 
@@ -220,6 +237,8 @@ Condition resolves
 Resolved notification verified
 ```
 
+For Checkmk-owned conditions, equivalent end-to-end testing should verify service-state detection, notification routing, acknowledgement or maintenance behavior where applicable, and recovery notification.
+
 Test alerts should be documented so maintenance can distinguish intentional validation from genuine incidents.
 
 ## Planned documentation
@@ -229,6 +248,7 @@ As the implementation progresses, this section should gain:
 * sanitized Prometheus alert-rule examples
 * Alertmanager configuration examples
 * notification-routing documentation
+* alert ownership documentation for Checkmk and Prometheus
 * alert response runbooks
 * validation records showing successful end-to-end tests
 * maintenance procedures for Alertmanager
