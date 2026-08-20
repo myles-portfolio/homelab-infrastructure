@@ -2,6 +2,8 @@
 
 This roadmap captures planned homelab improvements derived from the internal operational backlog. Items are intentionally generalized for public documentation.
 
+Day-to-day implementation work should be tracked in GitHub Projects and linked issues where appropriate. This document remains the high-level architectural roadmap and records major planned capabilities rather than acting as a task board.
+
 ## In progress
 
 ### Secure remote access
@@ -16,6 +18,33 @@ Success criteria:
 * rollback to local-only access is straightforward
 
 ## Planned
+
+### Checkmk infrastructure monitoring
+
+Evaluate and deploy Checkmk Raw Edition as an infrastructure and service-monitoring layer alongside the existing Prometheus and Grafana observability stack.
+
+The intended deployment is a dedicated Debian virtual machine on Proxmox with an initial allocation of 2 vCPU, 4 GB RAM, and approximately 32 GB of storage.
+
+Goals:
+
+* provide host and service state monitoring for critical infrastructure
+* add straightforward Linux agent and SNMP-based monitoring
+* monitor service availability independently of metrics dashboards
+* retain Prometheus for time-series metrics and Grafana visualization
+* avoid unnecessary duplication between Checkmk and Prometheus
+* define alert ownership and notification behavior before broad rollout
+
+Initial rollout sequence:
+
+1. deploy and harden the Checkmk VM
+2. validate Checkmk itself
+3. onboard a low-risk Linux guest first
+4. expand to core application guests
+5. add network-device monitoring where supported
+6. onboard the Proxmox host after the monitoring model is validated
+7. evaluate how Checkmk notifications should coexist with Prometheus and Alertmanager
+
+See [`monitoring/checkmk-plan.md`](monitoring/checkmk-plan.md) for the detailed deployment plan.
 
 ### Dedicated reverse-proxy service
 
