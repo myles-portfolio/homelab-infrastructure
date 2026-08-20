@@ -27,7 +27,7 @@ This boundary may be adjusted after operational testing to avoid duplicate alert
 
 ## Planned deployment
 
-Checkmk Raw Edition will be deployed on a dedicated Debian virtual machine hosted by Proxmox VE.
+Checkmk Community will be deployed on a dedicated Debian virtual machine hosted by Proxmox VE.
 
 Initial sizing:
 
@@ -38,7 +38,7 @@ Initial sizing:
 | Storage | 32 GB |
 | Network adapter | VirtIO |
 | Operating system | Debian |
-| Checkmk edition | Raw Edition |
+| Checkmk edition | Community |
 
 The dedicated VM provides workload isolation, an independent maintenance boundary, straightforward backup and recovery, and a deployment model that closely matches Checkmk's standard Linux installation workflow.
 
@@ -51,7 +51,7 @@ Checkmk will not be installed directly on the Proxmox host.
 1. Create a dedicated Debian VM in Proxmox.
 2. Apply operating-system updates.
 3. Configure hostname, DNS, and stable addressing.
-4. Install the current supported Checkmk Raw Edition package.
+4. Install the current supported Checkmk Community package.
 5. Create the initial Checkmk site.
 6. validate the Checkmk web interface and site services.
 7. Configure backup coverage for the VM and Checkmk site data.
