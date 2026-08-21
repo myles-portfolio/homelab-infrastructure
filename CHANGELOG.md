@@ -2,6 +2,36 @@
 
 This changelog is a curated, sanitized history of material homelab changes. It is derived from the internal operational log but intentionally omits exact private IPs, public-facing domains, personal entity identifiers, and other sensitive implementation details.
 
+## 2026-08-21
+
+### Deployed Checkmk Community monitoring platform
+
+Deployed Checkmk Community on a dedicated Debian virtual machine as a complementary infrastructure and service-monitoring platform alongside the existing Prometheus and Grafana stack.
+
+Key changes:
+
+* created a dedicated Debian VM with isolated compute and storage resources
+* configured stable internal addressing and DNS
+* fully patched the guest operating system
+* installed and validated QEMU Guest Agent
+* installed Checkmk Community and created the initial monitoring site
+* validated Checkmk site services and web administration access
+* documented Checkmk as the primary platform for infrastructure state monitoring while retaining Prometheus for metrics and Grafana for visualization
+
+### Added scheduled Proxmox guest backups
+
+Created the first scheduled Proxmox backup job covering the current guest inventory.
+
+Key changes:
+
+* configured centralized guest backup storage
+* enabled scheduled snapshot-mode backups with ZSTD compression
+* applied retention for recent, daily, weekly, and monthly recovery points
+* initiated a fresh backup run for validation
+* established controlled restore testing as a required recovery validation step
+
+Backup creation is not considered sufficient proof of recoverability. A temporary isolated restore of the Checkmk VM remains pending before the Checkmk platform deployment phase is closed.
+
 ## 2026-08-17
 
 ### Built YAML-managed Home Assistant Command Center dashboard
