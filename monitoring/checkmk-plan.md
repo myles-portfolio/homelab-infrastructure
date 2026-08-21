@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This document defines the planned introduction of Checkmk as an infrastructure and service-monitoring layer for the homelab.
+This document defines the introduction of Checkmk as an infrastructure and service-monitoring layer for the homelab.
 
-Checkmk is not intended to replace the existing Prometheus and Grafana stack. Prometheus remains the primary time-series metrics platform, while Grafana remains the primary visualization layer. Checkmk will be evaluated for host state, service state, agent-based monitoring, SNMP monitoring, and operational alerting where that model provides clearer infrastructure visibility.
+Checkmk is not intended to replace the existing Prometheus and Grafana stack. Prometheus remains the primary time-series metrics platform, while Grafana remains the primary visualization layer. Checkmk is being introduced for host state, service state, agent-based monitoring, SNMP monitoring, and operational alerting where that model provides clearer infrastructure visibility.
 
 ## Why add Checkmk
 
@@ -20,41 +20,55 @@ The intended division of responsibilities is:
 | Host and service state | Checkmk |
 | Linux agent monitoring | Checkmk |
 | SNMP infrastructure monitoring | Checkmk |
-| Metrics-based alert rules | Prometheus and Alertmanager |
+| Metrics-based alert rules | Prometheus and Alertmanager, if retained |
 | Infrastructure state notifications | Checkmk, subject to final alerting design |
 
 This boundary may be adjusted after operational testing to avoid duplicate alerts and unnecessary collection overlap.
 
-## Planned deployment
+## Deployment
 
-Checkmk Community will be deployed on a dedicated Debian virtual machine hosted by Proxmox VE.
+Checkmk Community is deployed on a dedicated Debian virtual machine hosted by Proxmox VE.
 
-Initial sizing:
+Current platform sizing:
 
-| Resource | Planned allocation |
+| Resource | Allocation |
 |---|---:|
 | vCPU | 2 |
 | Memory | 4 GB |
-| Storage | 32 GB |
+| Storage | 64 GB |
 | Network adapter | VirtIO |
-| Operating system | Debian |
+| Operating system | Debian 13 |
 | Checkmk edition | Community |
 
 The dedicated VM provides workload isolation, an independent maintenance boundary, straightforward backup and recovery, and a deployment model that closely matches Checkmk's standard Linux installation workflow.
 
-Checkmk will not be installed directly on the Proxmox host.
+Checkmk is not installed directly on the Proxmox host.
 
 ## Deployment sequence
 
 ### Phase 1: Platform deployment
 
-1. Create a dedicated Debian VM in Proxmox.
-2. Apply operating-system updates.
-3. Configure hostname, DNS, and stable addressing.
-4. Install the current supported Checkmk Community package.
-5. Create the initial Checkmk site.
-6. validate the Checkmk web interface and site services.
-7. Configure backup coverage for the VM and Checkmk site data.
+Status: **In progress, restore validation pending**
+
+Completed work:
+
+1. Created a dedicated Debian VM in Proxmox.
+2. Applied operating-system updates.
+3. Configured hostname, internal DNS, and stable addressing.
+4. Installed the supported Checkmk Community package.
+5. Created the initial Checkmk site.
+6. Validated the Checkmk web interface and site services.
+7. Added the VM to centralized Proxmox backup coverage.
+
+Remaining validation:
+
+1. complete a fresh backup run
+2. restore the Checkmk VM backup as a temporary isolated test VM
+3. boot the restored guest with networking disconnected to avoid duplicate addressing
+4. validate Debian startup, Checkmk installation, site presence, and site service state
+5. remove the temporary restore-test VM after successful validation
+
+The restore test is required before Phase 1 is considered complete. Successful backup creation alone is not treated as proof of recoverability.
 
 ### Phase 2: Low-risk onboarding
 
@@ -101,7 +115,7 @@ The goal is to complement, not duplicate, the existing Node Exporter and Proxmox
 
 ## Relationship to Prometheus
 
-Prometheus and Checkmk will initially coexist.
+Prometheus and Checkmk currently coexist.
 
 The working model is:
 
@@ -128,12 +142,12 @@ Checkmk is intended for questions such as whether a host, filesystem, service, i
 
 ## Alerting design
 
-The existing roadmap already plans Prometheus alert rules and Alertmanager. Adding Checkmk creates a potential duplicate-alert path that must be managed deliberately.
+Checkmk includes its own notification system, so Prometheus Alertmanager is no longer considered a prerequisite for infrastructure alerting.
 
-Before enabling broad Checkmk notifications:
+Before enabling broad notifications:
 
 1. classify which conditions belong to Checkmk
-2. classify which conditions belong to Prometheus and Alertmanager
+2. determine whether Prometheus alert rules and Alertmanager are still needed for metrics-oriented conditions
 3. identify overlapping checks
 4. suppress or remove duplicate notification paths
 5. test warning, critical, recovery, acknowledgement, and maintenance behavior
@@ -146,6 +160,10 @@ Checkmk should be protected at two layers where practical:
 
 * Proxmox VM backup for full guest recovery
 * Checkmk-native site backup for application-level recovery and migration
+
+A scheduled Proxmox backup job now covers the Checkmk VM. A controlled restore test is the current Phase 1 acceptance requirement.
+
+Checkmk-native site backup remains a planned second recovery layer after the initial platform restore path is validated.
 
 Recovery documentation should include site restoration, version compatibility, credentials handling, and post-restore validation.
 
@@ -168,6 +186,7 @@ Sanitized examples should preserve architecture and operating concepts without e
 The Checkmk evaluation will be considered successful when:
 
 * the dedicated monitoring VM is stable and documented
+* the VM backup has been successfully restored and validated
 * at least one Linux guest is monitored successfully
 * service discovery produces useful, actionable checks
 * critical service availability can be represented clearly
