@@ -17,13 +17,11 @@ Success criteria:
 * administrative access paths are documented
 * rollback to local-only access is straightforward
 
-## Planned
-
 ### Checkmk infrastructure monitoring
 
-Evaluate and deploy Checkmk Community as an infrastructure and service-monitoring layer alongside the existing Prometheus and Grafana observability stack.
+Deploy Checkmk Community as an infrastructure and service-monitoring layer alongside the existing Prometheus and Grafana observability stack.
 
-The intended deployment is a dedicated Debian virtual machine on Proxmox with an initial allocation of 2 vCPU, 4 GB RAM, and approximately 32 GB of storage.
+Phase 1 platform deployment is substantially complete. Checkmk Community is installed on a dedicated Debian virtual machine, the initial site is operational, internal DNS and stable addressing are configured, and the web interface and site services have been validated. Proxmox backup coverage has also been established. A restore test remains required before Phase 1 is considered fully validated.
 
 Goals:
 
@@ -34,17 +32,29 @@ Goals:
 * avoid unnecessary duplication between Checkmk and Prometheus
 * define alert ownership and notification behavior before broad rollout
 
-Initial rollout sequence:
+Rollout sequence:
 
-1. deploy and harden the Checkmk VM
-2. validate Checkmk itself
-3. onboard a low-risk Linux guest first
-4. expand to core application guests
-5. add network-device monitoring where supported
-6. onboard the Proxmox host after the monitoring model is validated
-7. evaluate how Checkmk notifications should coexist with Prometheus and Alertmanager
+1. complete backup restore validation for the Checkmk VM
+2. onboard a low-risk Linux guest first
+3. expand to core application guests
+4. add network-device monitoring where supported
+5. onboard the Proxmox host after the monitoring model is validated
+6. define notification ownership between Checkmk and the Prometheus alerting path
 
 See [`monitoring/checkmk-plan.md`](monitoring/checkmk-plan.md) for the detailed deployment plan.
+
+### Backup verification and restore testing
+
+A scheduled Proxmox backup job now provides centralized backup coverage for the current guest inventory. The next step is to validate recoverability through controlled restore testing rather than treating successful backup creation as sufficient evidence of recovery readiness.
+
+Goals:
+
+* verify backups are not only present but recoverable
+* document restore steps for critical guests
+* distinguish VM-level, container-level, application-level, and database-level recovery
+* periodically repeat restore tests after the initial process is documented
+
+## Planned
 
 ### Dedicated reverse-proxy service
 
@@ -66,16 +76,6 @@ Goals:
 * detect approaching expiration before service impact
 * surface status through the existing monitoring stack
 * document alert thresholds and escalation behavior
-
-### Backup verification and restore testing
-
-Implement a repeatable process for validating guest backups and periodically testing restoration.
-
-Goals:
-
-* verify backups are not only present but recoverable
-* document restore steps for critical guests
-* distinguish VM-level, container-level, application-level, and database-level recovery
 
 ### SSH hardening
 
@@ -112,12 +112,13 @@ Goals:
 
 ### Expanded backup coverage
 
-Expand centralized backup coverage for selected large or rebuild-intensive datasets.
+Expand centralized backup coverage for selected large or rebuild-intensive datasets where guest-level backups do not include externally mounted or otherwise excluded data.
 
 Goals:
 
 * prioritize data that is expensive to recreate
 * document storage-capacity impact
+* identify bind mounts and external datasets excluded from guest backups
 * avoid treating replaceable application binaries as equivalent to unique data
 
 ## Continuous improvement
