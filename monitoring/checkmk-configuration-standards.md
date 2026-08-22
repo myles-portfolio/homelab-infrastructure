@@ -15,6 +15,44 @@ The objective is to avoid per-host configuration where inherited settings, contr
 5. Avoid duplicating information already discovered by Checkmk or represented by another classification mechanism.
 6. Prefer rules targeted by reusable classifications over explicit host lists.
 7. Review effective parameters after introducing a new rule to verify the intended scope and resulting values.
+8. Use stable semantic host identifiers rather than IP addresses as Checkmk host names.
+
+## Host naming standard
+
+Checkmk host names follow this pattern:
+
+```text
+<environment>-<service>[-<role>]-<nn>
+```
+
+Examples:
+
+```text
+prod-dns-01
+prod-files-01
+prod-mon-01
+dev-app-01
+```
+
+The optional role segment is used only when a service is split into distinct tiers, for example:
+
+```text
+dev-sam-app-01
+dev-sam-db-01
+```
+
+Naming rules:
+
+* use lowercase characters
+* use hyphens as separators
+* use short, controlled environment identifiers such as `prod`, `dev`, and `lab`
+* identify the stable service or operational purpose rather than the product, operating system, hypervisor, or IP address
+* use a two-digit instance suffix beginning with `01`
+* keep the Checkmk host name stable when the implementation changes
+* store the network address separately in the Checkmk IPv4 or IPv6 address field
+* use the Alias field for a friendly product or workload name when useful
+
+This separates system identity from addressing and implementation details. For example, a DNS host may remain `prod-dns-01` even if the DNS software changes later.
 
 ## Folder model
 
@@ -100,7 +138,8 @@ hypervisor:<platform>
 Examples:
 
 ```text
-role:database
+role:dns
+role:application-development
 backup:daily
 hypervisor:proxmox
 ```
@@ -126,6 +165,8 @@ The rule sets filesystem used-space thresholds to:
 
 Effective service parameters were reviewed after activation and confirmed that the intended rule supplied the resulting thresholds.
 
+A second validated pattern uses an active DNS check targeted by reusable classifications and a DNS-role label. The check queries the monitored DNS host directly and validates that a known internal record resolves to its expected address. This tests application behavior rather than only host or process state.
+
 This pattern demonstrates the intended operating model:
 
 ```text
@@ -133,27 +174,40 @@ Folder inheritance
       +
 Controlled host tags
       +
+Flexible labels
+      +
 Rule conditions
       |
       v
-Consistent effective service parameters
+Consistent effective monitoring behavior
 ```
 
 ## Linux host onboarding standard
 
 The validated Linux onboarding sequence is:
 
-1. place the host in the appropriate folder
-2. apply required inherited and explicit classifications
-3. install the Checkmk Linux agent package
-4. register the agent with the Checkmk site
-5. restrict the agent listener to the monitoring server where host firewalling is enabled
-6. validate agent connectivity
-7. run service discovery
-8. review discovered host labels and services before acceptance
-9. activate the configuration
-10. confirm host and accepted service state
-11. review effective parameters when new rules or classifications are introduced
+1. choose a host name using the naming standard
+2. place the host in the appropriate folder
+3. set the explicit network address separately from the host name
+4. apply required inherited and explicit classifications
+5. install the Checkmk Linux agent package
+6. register the agent using the same Checkmk host name
+7. restrict the agent listener to the monitoring server where host firewalling is enabled
+8. validate agent connectivity
+9. run service discovery
+10. review discovered host labels and services before acceptance
+11. activate the configuration
+12. confirm host and accepted service state
+13. review effective parameters when new rules or classifications are introduced
+14. add application-level active checks for important services where practical
+
+## Container considerations
+
+Linux containers may require additional runtime capabilities for modern systemd services used by monitoring agents. When a service fails with a namespace-related systemd status, prefer correcting the container capability model rather than disabling service hardening.
+
+For the current unprivileged Proxmox LXC model, enabling the required nesting capability resolved namespace failures affecting the Checkmk agent controller and other systemd services.
+
+Container network configuration should also be kept intentional. A production DNS container was found to have an unused DHCPv6 setting alongside static IPv4 addressing. The unresolved DHCPv6 request delayed network readiness and therefore delayed DNS service startup. Removing the unused DHCPv6 configuration restored prompt service startup after reboot.
 
 ## Publication requirements
 
