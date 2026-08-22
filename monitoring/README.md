@@ -12,8 +12,6 @@ See [`checkmk-plan.md`](checkmk-plan.md) for the deployment and evaluation plan 
 
 ## Monitoring architecture
 
-The monitoring model separates operational state monitoring from metrics collection and visualization:
-
 ```text
 Infrastructure
    |
@@ -33,35 +31,6 @@ Infrastructure
 
 This separation allows each platform to focus on the monitoring model it handles best while avoiding unnecessary coupling.
 
-## Current metric collection path
-
-The validated Prometheus collection path currently includes:
-
-```text
-Proxmox VE Host
-   |          |
-   v          v
-Node       PVE
-Exporter   Exporter
-   \          /
-    \        /
-     v      v
-    Prometheus
-        |
-        v
-      Grafana
-
-UPS / NUT source
-       |
-       v
-  NUT Exporter
-       |
-       v
-   Prometheus
-```
-
-This distinction matters because Grafana is the visualization layer, while Prometheus is the collection and time-series storage layer.
-
 ## Components
 
 ### Prometheus
@@ -74,26 +43,17 @@ The current validated scrape targets include:
 * Proxmox/PVE exporter for virtualization platform metrics
 * NUT exporter for UPS and power telemetry
 
-Operational validation includes:
-
-* Prometheus HTTP response
-* active target status
-* individual exporter health
-* successful query execution when needed
-
-Prometheus also stores the collected time-series data locally.
+Prometheus itself is also monitored from Checkmk through an active HTTP availability check so application reachability is validated independently of the Prometheus metrics path.
 
 ### Grafana
 
 Grafana provides dashboards and visualization over the metrics collected by Prometheus.
 
-A healthy Grafana container does not prove that Prometheus or its targets are healthy, so dashboard availability and data-source health are treated as separate checks.
+A healthy Grafana container does not prove that Prometheus or its targets are healthy, so dashboard availability and data-source health are treated as separate checks. Grafana has its own independent active HTTP availability check in Checkmk.
 
 ### Node Exporter
 
 Node Exporter runs on the Proxmox host and exposes host-level system metrics to Prometheus.
-
-This provides visibility into the underlying Linux host independently of the virtualization-specific metrics exposed by the PVE exporter.
 
 ### Proxmox/PVE exporter
 
@@ -104,12 +64,6 @@ The PVE exporter exposes Proxmox-specific metrics to Prometheus, providing visib
 The NUT exporter translates Network UPS Tools data into Prometheus-compatible metrics.
 
 Because the exporter port is not published to the Monitoring VM host, validation is performed through Prometheus target health rather than assuming direct localhost access should work.
-
-### Alertmanager
-
-Alertmanager is no longer a prerequisite for the initial infrastructure alerting rollout because Checkmk has its own notification system.
-
-Prometheus alert rules and Alertmanager may still be introduced later for metrics-oriented conditions where Prometheus is the authoritative monitoring source. Any future implementation should avoid duplicating conditions already owned by Checkmk.
 
 ### Checkmk
 
@@ -125,27 +79,15 @@ The current platform state includes:
 * workload-specific Proxmox backup coverage
 * successful isolated restore validation
 * scalable folder hierarchy for configuration inheritance
-* first Linux agent onboarding completed successfully
-* custom classification taxonomy defined
-* flexible host labels applied
-* rule targeting through folder scope and host tags validated
-* controlled service, agent, and host state-transition testing completed successfully
-
-Its intended responsibilities include:
-
-* host and service state monitoring
-* Linux agent-based monitoring
-* SNMP monitoring for supported infrastructure
-* active service availability checks
-* infrastructure-focused notifications
-
-Broad notification coverage will be introduced only after monitored conditions and ownership boundaries are defined.
+* custom classification taxonomy and flexible host labels
+* validated classification-based rule targeting
+* controlled service, agent, and host state-transition testing
+* core guest coverage completed across DNS, password management, file services, Home Assistant, and the monitoring stack
+* active checks validating DNS behavior, authenticated SMB access, user-facing web availability, Prometheus availability, and Grafana availability
 
 ## Checkmk configuration model
 
 Checkmk folders are treated as configuration-inheritance boundaries rather than only visual organization.
-
-The initial structure separates production and development environments and introduces technology or platform branches where they provide useful inherited configuration. The hierarchy will remain intentionally shallow until additional structure is justified by actual monitoring requirements.
 
 The classification model uses:
 
@@ -153,17 +95,13 @@ The classification model uses:
 * host tags for controlled cross-cutting classifications used by rules
 * labels for flexible metadata that may evolve over time
 
-The validated custom host-tag dimensions are Environment, Service Criticality, Platform, Virtualization, and Service Class. Labels are used for metadata such as service role, backup policy, and hypervisor platform where a controlled host tag would add unnecessary rigidity.
+The validated custom host-tag dimensions are Environment, Service Criticality, Platform, Virtualization, and Service Class.
 
-A filesystem monitoring rule was successfully scoped to a development Linux VM using folder placement plus custom host-tag conditions. Effective service parameters were then inspected to confirm that the intended warning and critical thresholds were actually applied.
-
-This confirms that the classification model is operational, not merely descriptive.
+Rules are targeted through reusable classifications wherever practical. Validated examples include development filesystem thresholds, DNS active checks, authenticated SMB checks, application HTTP checks, and Linux-container-specific memory thresholds.
 
 ## Linux agent onboarding
 
-The first Linux guest onboarding has been validated end to end.
-
-The sanitized workflow is:
+The validated workflow is:
 
 1. place the host in the correct Checkmk folder
 2. install the Checkmk Linux agent package
@@ -175,39 +113,45 @@ The sanitized workflow is:
 8. activate the configuration
 9. confirm the host and accepted services report healthy states
 10. verify effective parameters when new rules or classifications are introduced
+11. add meaningful application-level checks where practical
 
-The initial discovered monitoring baseline includes agent health, CPU, memory, filesystems, network interfaces, kernel performance, systemd summaries, time synchronization, TCP connections, and uptime.
+## Active service validation
+
+Phase 3 established several application-level patterns:
+
+* DNS checks verify both internal-record resolution and upstream public resolution.
+* Password-management monitoring checks the user-facing HTTPS endpoint, including status, latency, and certificate validity.
+* File-services monitoring verifies an authenticated SMB share through a dedicated read-only monitoring identity.
+* Home Assistant is monitored as an appliance-style VM through its web endpoint without forcing an unsupported general-purpose Linux agent onto the operating system.
+* Prometheus and Grafana are checked independently through separate HTTP availability checks.
+
+These checks answer whether the service is actually usable, rather than only whether the guest or process exists.
+
+## Container-specific monitoring
+
+Small Linux containers produced page-table memory warnings even when overall memory availability was healthy. Effective service parameters identified the default page-table thresholds as the source.
+
+A targeted Linux-container rule now adjusts only the page-table warning and critical thresholds while leaving RAM, swap, committed-memory, and other Linux memory checks unchanged. The rule is scoped through Platform and Virtualization classifications rather than explicit host lists.
+
+A privileged file-services container also exposed an expected guest AppArmor-loader failure under host-level Proxmox confinement. The unnecessary guest loader was disabled after confirming that host-level confinement remained intact.
 
 ## State-transition validation
 
-Phase 2 included controlled failure and recovery testing on the low-risk Linux guest.
+Controlled failure testing demonstrated distinct handling of:
 
-Three distinct scenarios were validated:
+1. service failure
+2. Checkmk agent communication failure
+3. complete host outage
 
-1. **Service failure**
-   * a temporary systemd unit was intentionally created in a failed state
-   * Checkmk changed the Systemd Service Summary from OK to CRIT
-   * clearing the failed unit returned the service summary to OK
-
-2. **Agent communication failure**
-   * the Checkmk agent listener was temporarily stopped
-   * the Check_MK service reported a critical agent-data failure while the host itself remained reachable
-   * restoring the listener returned agent monitoring to OK
-
-3. **Host outage**
-   * the development VM was shut down cleanly
-   * Checkmk transitioned the host from UP to DOWN
-   * after the VM restarted, the host automatically returned to UP and all accepted services returned to healthy state
-
-These tests demonstrate that Checkmk can distinguish application or service state, monitoring-path failure, and complete host unavailability. They also demonstrate automatic recovery when the underlying condition is corrected.
-
-An agent uninstall and reinstall test was not performed because the communication-loss test already validated the operational failure and recovery path without introducing unnecessary configuration changes.
+Each scenario produced the expected Checkmk state and recovered automatically when the underlying condition was corrected.
 
 ## Monitoring VMs
 
 The Prometheus and Grafana stack runs on a dedicated Ubuntu VM rather than directly on the Proxmox host.
 
 Checkmk runs on a separate Debian VM. This separation provides independent maintenance, backup, recovery, testing, and retirement boundaries for the two monitoring models.
+
+The Prometheus/Grafana VM is also monitored through the Checkmk Linux agent. During onboarding, Checkmk highlighted elevated root-filesystem utilization. Inspection identified reclaimable container image data, and safe image pruning restored additional free space before application checks were added.
 
 See [`../proxmox/runbooks/monitoring-vm-maintenance.md`](../proxmox/runbooks/monitoring-vm-maintenance.md) for the existing Prometheus stack maintenance workflow.
 
@@ -225,29 +169,15 @@ The Prometheus stack is validated in layers:
 
 Checkmk uses a similar layered validation model:
 
-1. confirm the Debian VM is healthy
-2. confirm the Checkmk package is installed
-3. confirm the Checkmk site exists
-4. confirm site services are running
-5. confirm the web interface responds
-6. confirm administrative authentication works
-7. confirm backup coverage exists
-8. confirm a backup restores successfully in an isolated temporary VM
-9. confirm the Linux agent is installed and registered
-10. confirm the agent listener is reachable only through the intended management path
-11. confirm service discovery returns expected host and service data
-12. confirm accepted services report healthy states
-13. confirm classification-based rules produce the intended effective parameters
-14. confirm service failure and recovery produce the expected state transitions
-15. confirm agent communication failure is distinguishable from host unavailability
-16. confirm host outage and recovery are detected automatically
-17. validate notification delivery after notification rules are introduced
-
-The Phase 1 recovery test successfully restored the Checkmk VM from Proxmox backup with networking disconnected, then validated operating-system startup, Checkmk version, site presence, site data, and site service state.
-
-Phase 2 successfully established registered agent communication, scoped network access, service discovery, active monitoring, reusable classification, effective rule targeting, controlled problem detection, and automatic recovery for a development Linux guest.
-
-This prevents false positives where a monitoring UI is online but the underlying collection, recovery, configuration, or failure-detection path is broken.
+1. confirm the Checkmk VM is healthy
+2. confirm site services and the web interface are operational
+3. confirm backup coverage and restore behavior
+4. confirm host agent or appliance reachability
+5. confirm service discovery returns expected data
+6. confirm effective classification-based rules
+7. confirm meaningful application-level checks
+8. validate distinct service, agent, and host failure behavior
+9. validate notification delivery after notification rules are introduced
 
 ## Maintenance model
 
@@ -276,8 +206,6 @@ Target and UI validation
 
 Checkmk has its own maintenance workflow because it is installed natively on a dedicated Debian VM rather than deployed through the existing Docker Compose stack.
 
-Rollback protection is selected before changes based on risk and available storage.
-
 ## Observability principles
 
 1. **Monitor dependencies, not just hosts.** A running VM does not prove the hosted service is functional.
@@ -293,13 +221,12 @@ Rollback protection is selected before changes based on risk and available stora
 11. **Design for inheritance before scale.** Folder, tag, label, and rule structure should be established before onboarding large numbers of hosts.
 12. **Verify effective configuration.** Creating a rule is not sufficient until the intended service shows the resulting effective parameters.
 13. **Test failure modes deliberately.** A monitoring design is not validated until expected service, agent, and host failures produce distinct and recoverable states.
+14. **Use least privilege for authenticated checks.** Monitoring identities should receive only the access required to validate the service.
 
 ## Current monitoring coverage
 
-The validated Prometheus stack currently includes Proxmox host metrics, Proxmox virtualization metrics, and UPS-related monitoring through Prometheus and Grafana.
+Checkmk Phases 1 through 3 are complete. Platform deployment and restore behavior are validated, the low-risk onboarding model has been failure-tested, and core guest coverage now includes DNS, password management, file services, Home Assistant, Prometheus, and Grafana.
 
-The Checkmk platform is deployed, operational, restore-validated, and has completed Phase 2 validation. The first development Linux guest is actively monitored through a registered Checkmk agent, the classification and rule-targeting model is validated, and controlled service, agent, and host failure scenarios have all recovered successfully.
-
-The next Checkmk work is Phase 3 core guest coverage, beginning with a foundational infrastructure service and using the established onboarding and classification standards.
+The next rollout work is network infrastructure monitoring, followed by deliberate Proxmox hypervisor onboarding and notification ownership design.
 
 See [`checkmk-plan.md`](checkmk-plan.md) for the Checkmk rollout sequence and [`alerting-roadmap.md`](alerting-roadmap.md) for the Prometheus alerting backlog.
