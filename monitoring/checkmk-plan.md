@@ -180,6 +180,32 @@ Completed work:
 
 This monitoring model distinguishes container health, encrypted Checkmk agent communication, and actual user-facing application availability through the reverse-proxy and TLS path.
 
+#### File services onboarding
+
+Status: **In progress**
+
+File services are being onboarded as the third production-class Phase 3 workload.
+
+Completed work:
+
+* created the file-services host using the semantic production file-service naming standard
+* installed and registered the Checkmk Linux agent with TLS-protected pull-agent communication
+* completed Linux service discovery, including the root filesystem and the mounted file-services dataset
+* investigated a failed guest AppArmor unit and confirmed it was an unnecessary in-container profile-loader failure under Proxmox LXC confinement
+* disabled the unnecessary guest AppArmor loader and cleared the stale failed systemd state rather than weakening host-level container confinement
+* migrated the file-services container from DHCP to stable static IPv4 addressing
+* removed unused DHCPv6 configuration during the network migration
+* validated Samba services, routing, and mounted storage after restart
+* updated Checkmk to the new address while retaining the stable semantic host identifier
+* updated Home Assistant network-backup storage to the new file-server address
+* validated a successful Home Assistant backup after the storage migration
+* validated Windows SMB access to the migrated share
+* created a dedicated non-login Samba monitoring account with read-only share access
+* verified the monitoring credential can enumerate the share but cannot create content
+* configured an active SMB share check targeted through Production, Core Infrastructure, and `role:fileshare` metadata
+
+The SMB active check is pending its first completed monitoring result. File-services onboarding will be considered complete after the share-access check reports healthy and the final service state is reviewed.
+
 ### Phase 4: Network infrastructure
 
 Evaluate SNMP monitoring for supported network devices.
