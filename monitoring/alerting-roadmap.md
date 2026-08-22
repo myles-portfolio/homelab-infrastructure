@@ -2,178 +2,223 @@
 
 ## Purpose
 
-This roadmap defines the planned alerting architecture for the existing Prometheus and Grafana monitoring stack.
+This roadmap defines the planned notification architecture across Checkmk, Prometheus, and Grafana.
 
-The selected implementation path uses Prometheus alert rules for condition evaluation and Alertmanager for grouping, deduplication, silencing, routing, and notification delivery.
+Checkmk is now the primary platform for infrastructure and service-state monitoring. Prometheus remains the primary time-series metrics platform, while Grafana remains the primary visualization layer. Alertmanager is no longer a prerequisite for infrastructure alerting and should be introduced only where Prometheus-owned metric conditions require routing and notification handling.
 
-The goal is to expand monitoring coverage gradually while keeping alerts actionable and avoiding unnecessary noise.
+The goal is to establish one authoritative notification path per operational condition, keep alerts actionable, and avoid duplicate notifications across monitoring platforms.
 
-Checkmk Community is also planned as a complementary infrastructure and service-monitoring platform. Its notification capabilities will be introduced deliberately so that overlapping conditions do not produce duplicate alerts. See [`checkmk-plan.md`](checkmk-plan.md) for the Checkmk deployment plan and alert ownership model.
+See [`checkmk-plan.md`](checkmk-plan.md) for the Checkmk deployment plan and [`README.md`](README.md) for the overall monitoring architecture.
+
+## Current monitoring state
+
+Checkmk platform deployment, low-risk onboarding, and core guest coverage are complete.
+
+Validated Checkmk coverage now includes:
+
+* Linux host and service-state monitoring
+* controlled host, agent, and service failure detection
+* internal and upstream DNS resolution checks
+* authenticated SMB share availability
+* user-facing web availability checks
+* certificate-expiration checks where HTTPS is used
+* Home Assistant availability
+* Prometheus availability
+* Grafana availability
+* reusable rule targeting through folders, classifications, and labels
+* container-specific memory threshold tuning where the default page-table percentage produced non-actionable warnings
+
+Prometheus continues to collect time-series metrics for host, virtualization, and UPS telemetry. Grafana remains the primary visualization layer.
+
+The next alerting work should focus on notification ownership and delivery rather than adding another monitoring platform by default.
 
 ## Target architecture
 
 ```text
-Metric sources
-    |
-    v
-Prometheus
-    |
-    +--> stores time-series data
-    |
-    +--> evaluates alert rules
-              |
-              v
-         Alertmanager
-              |
-              v
-     Notification channels
+Infrastructure and services
+          |
+          +--> Checkmk agents / active checks / SNMP
+          |                 |
+          |                 v
+          |              Checkmk
+          |                 |
+          |                 v
+          |        Checkmk notifications
+          |
+          +--> exporters
+                    |
+                    v
+                Prometheus
+                    |
+                    +--> Grafana
+                    |
+                    +--> Prometheus alert rules
+                              |
+                              v
+                         Alertmanager
+                              |
+                              v
+                    Notification channels
 ```
 
-Grafana remains the primary visualization layer and queries Prometheus for dashboards and analysis. Alertmanager is a separate operational component responsible for notification handling.
+This architecture does not imply that every condition should exist in both Checkmk and Prometheus. Each alert-worthy condition should have one authoritative owner.
 
-Where Checkmk monitors the same infrastructure condition, one platform should be designated as the authoritative notification path. The intent is to use Alertmanager for metrics-based conditions and Checkmk for infrastructure or service-state conditions where that distinction is operationally useful.
+## Alert ownership model
 
-See [`README.md`](README.md) for the monitoring architecture diagram.
+### Checkmk-owned conditions
 
-## Phase 1: Alerting foundation
+Checkmk should normally own conditions where current operational state is the primary question.
 
-### Deploy Alertmanager
+Examples include:
 
-Add Alertmanager as a managed service in the Monitoring VM's Docker Compose stack.
+* host availability
+* Linux service state
+* monitoring-agent availability
+* filesystem state
+* DNS resolution failure
+* authenticated SMB share failure
+* web application availability
+* certificate expiration detected by active checks
+* SNMP device and interface state when network monitoring is introduced
 
-Implementation goals:
+### Prometheus-owned conditions
 
-* use a persistent configuration file
-* keep Alertmanager on the internal monitoring network
-* configure Prometheus to send alerts to Alertmanager
-* avoid publishing the Alertmanager interface externally unless there is a clear operational requirement
-* document the deployment and maintenance workflow
+Prometheus should normally own conditions where time-series behavior, sustained thresholds, rates, or historical context are required.
 
-### Configure notification routing
+Examples include:
 
-Establish at least one tested notification destination.
+* sustained CPU utilization
+* sustained memory pressure
+* capacity trends
+* exporter-derived UPS conditions
+* thin-pool or storage-growth risk
+* metrics that require rate, aggregation, or trend evaluation
 
-Initial options may include:
+### Shared-condition rule
 
-* email
-* chat or mobile notification integration
+The same operational condition should not normally send notifications through both platforms.
+
+If both systems observe the same dependency, one may retain the telemetry while only the designated owner sends notifications.
+
+## Phase 1: Checkmk notification foundation
+
+### Define notification recipients and routing
+
+Establish an initial Checkmk notification path for infrastructure and service-state conditions.
 
 Success criteria:
 
-* a known test alert reaches Alertmanager
-* Alertmanager routes the test alert to the intended destination
-* resolved notifications are delivered when appropriate
-* notification credentials are stored outside the public repository
+* at least one notification destination is configured
+* credentials and destination details remain outside the public repository
+* warning, critical, and recovery notifications are delivered successfully
+* routing can be scoped by host or service classification where useful
 
-### Create baseline alert rules
+### Validate notification lifecycle
 
-Begin with a small set of high-value alerts rather than broad metric coverage.
+Test the complete Checkmk notification path using controlled conditions already proven during monitoring validation.
 
-Initial rules should be easy to understand, validate, and respond to operationally.
+Candidate tests include:
 
-## Phase 2: Near-term alert coverage
+* temporary service failure
+* temporary agent communication failure
+* controlled host outage
+* active HTTP or DNS check failure
+
+Success criteria:
+
+* problem state is detected
+* notification is delivered
+* acknowledgement behavior is understood
+* scheduled downtime suppresses expected notifications
+* recovery notification is delivered
+
+## Phase 2: High-value infrastructure notifications
+
+Enable notifications only for conditions that require operator awareness or action.
+
+Initial candidates include:
+
+* core host DOWN states
+* Checkmk agent communication failure on critical Linux systems
+* DNS resolution failure
+* Vaultwarden availability failure
+* file-share availability failure
+* Home Assistant availability failure
+* Prometheus or Grafana endpoint failure
+* filesystem capacity thresholds
+* certificate expiration thresholds
+
+Warning and critical thresholds should reflect operational response needs rather than dashboard aesthetics.
+
+## Phase 3: Prometheus alerting evaluation
+
+Alertmanager should be introduced only after identifying Prometheus-owned conditions that Checkmk does not represent as clearly.
 
 ### UPS and power events
 
-Use the existing NUT exporter metrics to notify on meaningful power conditions.
+The existing NUT exporter metrics are strong candidates for Prometheus alert rules because they represent state and telemetry already collected through the metrics stack.
 
 Candidate conditions include:
 
 * utility power loss
 * UPS operating on battery
 * low battery
-* communication loss with the UPS or exporter
+* UPS or exporter communication loss
 * return to normal power
 
-Alerts should distinguish informational state changes from conditions that require operator action.
+### Sustained resource conditions
 
-### Monitoring target failures
-
-Alert when critical Prometheus scrape targets become unavailable.
-
-Initial targets include:
-
-* Node Exporter on the Proxmox host
-* Proxmox/PVE exporter
-* NUT exporter path
-
-A short delay should be used where appropriate so brief network interruptions do not immediately generate noise.
-
-### Host resource conditions
-
-Add selected Proxmox host alerts using the existing Node Exporter and PVE metrics.
-
-Candidate signals include:
-
-* high sustained CPU utilization
-* memory pressure
-* critically low filesystem capacity
-* thin-pool capacity risk
-* exporter or host monitoring loss
-
-Thresholds should be based on conditions that require intervention rather than arbitrary utilization percentages.
-
-## Phase 3: Service and infrastructure coverage
-
-### Certificate expiration monitoring
-
-Add visibility into TLS certificate expiration for internally hosted HTTPS services.
-
-Success criteria:
-
-* expiration date is collected as a metric
-* alert threshold provides enough lead time for remediation
-* alert identifies the affected service clearly
-* certificate monitoring does not depend solely on manual browser inspection
-
-### Core service availability
-
-Add availability checks for critical internal services such as:
-
-* DNS
-* Vaultwarden
-* Home Assistant
-* file services
-* monitoring endpoints
-
-Availability checks should validate the path users actually depend on, not only process state.
-
-### Backup monitoring
-
-Add visibility into backup recency and failure states where metrics or status data can be exposed safely.
-
-Targets include:
-
-* Home Assistant backup age
-* application backup completion
-* restore-test status
-* stale or missing backup conditions
-
-### Guest health
-
-Expand Proxmox monitoring to identify guest-level conditions that warrant attention.
-
-Useful signals include:
-
-* unexpected stopped state
-* sustained guest resource pressure
-* storage-capacity concerns
-* monitoring loss for critical workloads
-
-## Phase 4: Application-specific health
-
-Where practical, add health checks that confirm applications are usable rather than only listening on a port.
+Prometheus may be preferable for conditions requiring time-window evaluation.
 
 Examples include:
 
-* Prometheus target health
-* Grafana data-source availability
-* DNS lookup success
-* Vaultwarden HTTPS response
-* Home Assistant HTTP response
-* PostgreSQL query success
+* sustained high CPU utilization
+* sustained memory pressure
+* unusual resource growth
+* thin-pool capacity risk
+* capacity trends that require historical context
 
-These checks should be dependency-aware where possible so a single infrastructure failure does not create many redundant alerts.
+### Alertmanager deployment decision
+
+Deploy Alertmanager only if the selected Prometheus-owned conditions justify a separate routing component.
+
+If deployed, implementation goals include:
+
+* persistent configuration
+* internal-only management access unless external access is explicitly required
+* tested Prometheus-to-Alertmanager integration
+* at least one tested notification destination
+* grouping, deduplication, silencing, and recovery behavior validation
+* credentials excluded from the public repository
+
+## Phase 4: Network and hypervisor alert ownership
+
+As Checkmk coverage expands to network devices and the Proxmox hypervisor, define alert ownership before enabling notifications.
+
+Expected Checkmk candidates include:
+
+* network device availability
+* interface state
+* hardware or environmental faults exposed through SNMP
+* hypervisor host availability
+* operating-system service state
+* filesystem and ZFS health where available
+
+Prometheus may continue to own historical performance and capacity conditions for the same infrastructure.
+
+## Phase 5: Backup and recovery monitoring
+
+Add visibility into backup recency, failure, and recoverability where reliable status data can be exposed.
+
+Targets may include:
+
+* Home Assistant backup age
+* scheduled guest backup failures
+* stale or missing application backups
+* restore-test recency
+* independent backup destination health when introduced
+
+Backup creation alone should not be treated as proof of recoverability. Restore validation remains a separate operational requirement.
 
 ## Alert severity model
 
@@ -183,40 +228,51 @@ A simple severity model will be used initially:
 |---|---|---|
 | Info | State change worth recording but not requiring immediate action | Utility power restored |
 | Warning | Condition requires attention but service is not yet critically affected | Certificate nearing expiration |
-| Critical | Immediate intervention may be required | Low UPS battery during outage |
+| Critical | Immediate intervention may be required | Core service unavailable |
 
-Additional severity levels should be added only if operational need justifies them.
-
-## Alert ownership
-
-As Checkmk is introduced, each monitored condition should have a defined notification owner.
-
-Examples:
-
-* sustained resource thresholds may remain owned by Prometheus and Alertmanager
-* Linux service state, filesystem state, and SNMP device state may be owned by Checkmk
-* external service availability may be assigned to either platform based on which check provides the clearest operational signal
-
-The same condition should not normally notify through both platforms.
+Additional severity levels should be introduced only when a real operational requirement exists.
 
 ## Alerting principles
 
-1. **Alert on actionable conditions.** Every enabled alert should correspond to an expected operator decision or action.
-2. **Avoid duplicate symptoms.** One dependency failure should not generate an unnecessary storm of secondary alerts.
-3. **Use sustained conditions where appropriate.** Brief spikes and transient network loss should not automatically page the operator.
-4. **Use warning thresholds before critical thresholds when early intervention is useful.**
-5. **Document the expected response.** Every persistent alert should eventually link to a response runbook.
-6. **Test the entire path.** Rule evaluation alone is not sufficient; Alertmanager routing and notification delivery must also be validated.
-7. **Review alert quality.** Noisy, redundant, or non-actionable alerts should be tuned or removed.
-8. **Keep secrets private.** Notification credentials, tokens, and addresses are excluded from public configuration examples.
-9. **Define alert ownership across monitoring platforms.** Overlapping checks should have one authoritative notification path.
+1. **Alert on actionable conditions.** Every enabled notification should correspond to an expected operator decision or action.
+2. **Assign one authoritative owner.** Avoid sending the same operational condition through both Checkmk and Alertmanager.
+3. **Avoid duplicate symptoms.** A single dependency failure should not create an unnecessary notification storm.
+4. **Use sustained conditions where appropriate.** Prometheus is better suited to time-window and trend-based evaluation.
+5. **Use warning thresholds before critical thresholds when early intervention is useful.**
+6. **Document the expected response.** Persistent alerts should eventually link to response procedures or runbooks.
+7. **Test the entire notification path.** Detection without delivery is not operational alerting.
+8. **Validate recovery.** Recovery notifications and state clearing must be tested as deliberately as failure notifications.
+9. **Use maintenance controls.** Planned outages should use acknowledgement or scheduled-downtime mechanisms rather than generating known noise.
+10. **Keep secrets private.** Notification credentials, tokens, addresses, automation secrets, and internal topology remain outside public examples.
+11. **Review alert quality.** Noisy, redundant, or non-actionable alerts should be tuned or removed.
 
 ## Validation requirements
 
-An alert is not considered operational until the full workflow has been tested intentionally:
+A Checkmk-owned notification is not considered operational until this workflow has been tested:
 
 ```text
 Condition triggered
+      |
+      v
+Checkmk detects state
+      |
+      v
+Notification rule matches
+      |
+      v
+Notification is delivered
+      |
+      v
+Condition resolves
+      |
+      v
+Recovery notification verified
+```
+
+A Prometheus-owned notification is not considered operational until this workflow has been tested:
+
+```text
+Metric condition occurs
       |
       v
 Prometheus rule fires
@@ -237,20 +293,18 @@ Condition resolves
 Resolved notification verified
 ```
 
-For Checkmk-owned conditions, equivalent end-to-end testing should verify service-state detection, notification routing, acknowledgement or maintenance behavior where applicable, and recovery notification.
-
-Test alerts should be documented so maintenance can distinguish intentional validation from genuine incidents.
+Test alerts should be documented so intentional validation can be distinguished from genuine incidents.
 
 ## Planned documentation
 
-As the implementation progresses, this section should gain:
+As notification coverage is implemented, this section should gain:
 
-* sanitized Prometheus alert-rule examples
-* Alertmanager configuration examples
+* sanitized Checkmk notification-rule examples
+* alert ownership matrix
 * notification-routing documentation
-* alert ownership documentation for Checkmk and Prometheus
-* alert response runbooks
-* validation records showing successful end-to-end tests
-* maintenance procedures for Alertmanager
+* response runbooks for persistent alerts
+* validation records for warning, critical, recovery, acknowledgement, and downtime behavior
+* sanitized Prometheus alert-rule examples if Prometheus-owned alerts are introduced
+* Alertmanager configuration and maintenance procedures only if Alertmanager is ultimately deployed
 
-Once the alerting foundation is deployed and validated, completed items should move from this roadmap into the main monitoring documentation and changelog.
+Completed implementation work should move from this roadmap into the main monitoring documentation and changelog.
