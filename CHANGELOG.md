@@ -66,7 +66,20 @@ Key changes:
 
 The initial service baseline includes agent health, CPU, memory, filesystems, network interfaces, kernel performance, systemd summaries, time synchronization, TCP connections, and uptime.
 
-The next Checkmk configuration task is to define standardized host tags, labels, and inherited folder settings before broader onboarding.
+### Established Checkmk classification and rule-targeting standards
+
+Defined and validated a reusable configuration model before broader monitoring rollout.
+
+Key changes:
+
+* created custom host-tag groups for environment, service criticality, platform, virtualization, and service class
+* applied flexible labels for service role, backup policy, and hypervisor metadata without duplicating built-in or discovered classifications
+* verified inherited host properties through the folder hierarchy
+* created a filesystem monitoring rule targeted by folder scope and multiple custom host tags
+* validated the effective service parameters to confirm the intended warning and critical thresholds were applied
+* documented the taxonomy and rule-targeting model as a reusable Checkmk configuration standard
+
+This validated that Checkmk configuration can scale through inheritance and classification-based rules rather than per-host tuning.
 
 ## 2026-08-21
 
