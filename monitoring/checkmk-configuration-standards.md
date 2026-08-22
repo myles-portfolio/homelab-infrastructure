@@ -16,6 +16,7 @@ The objective is to avoid per-host configuration where inherited settings, contr
 6. Prefer rules targeted by reusable classifications over explicit host lists.
 7. Review effective parameters after introducing a new rule to verify the intended scope and resulting values.
 8. Use stable semantic host identifiers rather than IP addresses as Checkmk host names.
+9. Use dedicated least-privilege monitoring credentials for authenticated active checks rather than reusing application service accounts.
 
 ## Host naming standard
 
@@ -140,6 +141,7 @@ Examples:
 ```text
 role:dns
 role:application-development
+role:fileshare
 backup:daily
 hypervisor:proxmox
 ```
@@ -166,6 +168,8 @@ The rule sets filesystem used-space thresholds to:
 Effective service parameters were reviewed after activation and confirmed that the intended rule supplied the resulting thresholds.
 
 A second validated pattern uses an active DNS check targeted by reusable classifications and a DNS-role label. The check queries the monitored DNS host directly and validates that a known internal record resolves to its expected address. This tests application behavior rather than only host or process state.
+
+A third pattern uses an authenticated SMB active check targeted by Production, Core Infrastructure, and a file-share role label. The monitoring credential is a dedicated non-login Samba account with read-only access to the monitored share. Read access is tested explicitly, and write access is intentionally denied.
 
 This pattern demonstrates the intended operating model:
 
@@ -201,6 +205,21 @@ The validated Linux onboarding sequence is:
 13. review effective parameters when new rules or classifications are introduced
 14. add application-level active checks for important services where practical
 
+## Authenticated active-check credentials
+
+Authenticated service checks should use dedicated monitoring identities wherever practical.
+
+Requirements:
+
+* do not reuse a write-capable application service account when read-only monitoring is sufficient
+* use non-login operating-system identities where the monitored protocol supports separate service credentials
+* grant only the minimum protocol and resource permissions required by the active check
+* validate the credential manually before placing it into Checkmk
+* verify denied operations as well as allowed operations when enforcing least privilege
+* never commit monitoring passwords or automation secrets to the public repository
+
+For SMB monitoring, the validated pattern uses a dedicated Samba account that can authenticate and enumerate a monitored share but cannot create or modify content.
+
 ## Container considerations
 
 Linux containers may require additional runtime capabilities for modern systemd services used by monitoring agents. When a service fails with a namespace-related systemd status, prefer correcting the container capability model rather than disabling service hardening.
@@ -208,6 +227,8 @@ Linux containers may require additional runtime capabilities for modern systemd 
 For the current unprivileged Proxmox LXC model, enabling the required nesting capability resolved namespace failures affecting the Checkmk agent controller and other systemd services.
 
 Container network configuration should also be kept intentional. A production DNS container was found to have an unused DHCPv6 setting alongside static IPv4 addressing. The unresolved DHCPv6 request delayed network readiness and therefore delayed DNS service startup. Removing the unused DHCPv6 configuration restored prompt service startup after reboot.
+
+A privileged file-services container exposed a separate expected limitation: the guest AppArmor loader could not replace kernel profiles while the container remained confined by the Proxmox host. The guest AppArmor loader was disabled after confirming that host-level confinement remained in place, preventing a non-actionable failed-unit alert without weakening the container boundary.
 
 ## Publication requirements
 
