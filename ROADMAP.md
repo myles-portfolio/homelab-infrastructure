@@ -19,9 +19,9 @@ Success criteria:
 
 ### Checkmk infrastructure monitoring
 
-Deploy Checkmk Community as an infrastructure and service-monitoring layer alongside the existing Prometheus and Grafana observability stack.
+Checkmk Community is deployed as an infrastructure and service-monitoring layer alongside the existing Prometheus and Grafana observability stack.
 
-Phase 1 platform deployment is substantially complete. Checkmk Community is installed on a dedicated Debian virtual machine, the initial site is operational, internal DNS and stable addressing are configured, and the web interface and site services have been validated. Proxmox backup coverage has also been established. A restore test remains required before Phase 1 is considered fully validated.
+Phase 1 platform deployment is complete. The dedicated Debian VM is operational, the initial Checkmk site is healthy, internal DNS and stable addressing are configured, scheduled Proxmox backup coverage is in place, and a fresh backup has been restored and validated in an isolated temporary VM.
 
 Goals:
 
@@ -32,27 +32,29 @@ Goals:
 * avoid unnecessary duplication between Checkmk and Prometheus
 * define alert ownership and notification behavior before broad rollout
 
-Rollout sequence:
+Next rollout sequence:
 
-1. complete backup restore validation for the Checkmk VM
-2. onboard a low-risk Linux guest first
-3. expand to core application guests
-4. add network-device monitoring where supported
-5. onboard the Proxmox host after the monitoring model is validated
-6. define notification ownership between Checkmk and the Prometheus alerting path
+1. onboard a low-risk Linux guest and validate the Checkmk agent workflow
+2. expand to core application guests
+3. add network-device monitoring where supported
+4. onboard the Proxmox host after the monitoring model is validated
+5. define notification ownership between Checkmk and the Prometheus alerting path
 
 See [`monitoring/checkmk-plan.md`](monitoring/checkmk-plan.md) for the detailed deployment plan.
 
 ### Backup verification and restore testing
 
-A scheduled Proxmox backup job now provides centralized backup coverage for the current guest inventory. The next step is to validate recoverability through controlled restore testing rather than treating successful backup creation as sufficient evidence of recovery readiness.
+Scheduled Proxmox backup coverage is now organized into workload-specific jobs rather than one all-guests job. This isolates failures, supports workload-specific backup modes, and allows restore requirements to evolve independently.
+
+A controlled Checkmk restore test has validated the recovery process for one critical VM. Restore testing should now become a repeatable operational practice rather than a one-time deployment task.
 
 Goals:
 
-* verify backups are not only present but recoverable
+* periodically verify that backups remain recoverable
 * document restore steps for critical guests
 * distinguish VM-level, container-level, application-level, and database-level recovery
-* periodically repeat restore tests after the initial process is documented
+* review workload-specific backup mode and retention as services change
+* identify externally mounted datasets that require separate protection
 
 ## Planned
 
@@ -119,6 +121,7 @@ Goals:
 * prioritize data that is expensive to recreate
 * document storage-capacity impact
 * identify bind mounts and external datasets excluded from guest backups
+* add an independent backup destination when practical so recovery copies do not depend solely on the primary ZFS pool
 * avoid treating replaceable application binaries as equivalent to unique data
 
 ## Continuous improvement
@@ -130,5 +133,6 @@ The following practices are ongoing rather than one-time roadmap items:
 * validate services after package and application updates
 * remove obsolete snapshots after successful maintenance
 * periodically review storage utilization and thin-provisioning risk
+* periodically test backup restoration for critical workloads
 * sanitize configuration examples before publication
 * update public documentation when the architecture materially changes
