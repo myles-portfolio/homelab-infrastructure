@@ -58,7 +58,7 @@ The operating model is:
 
 The initial folder structure includes production and development roots, with Linux, infrastructure, monitoring, appliance, home-automation, and network branches introduced only where currently useful. Additional branches will be added as monitoring coverage expands rather than creating speculative empty structure.
 
-The initial custom classification taxonomy is now defined and validated:
+The initial custom classification taxonomy is defined and validated:
 
 * Environment
 * Service Criticality
@@ -93,9 +93,9 @@ Phase 1 acceptance is satisfied because both platform operation and VM-level rec
 
 ### Phase 2: Low-risk onboarding
 
-Status: **In progress, onboarding and configuration model validated**
+Status: **Complete**
 
-A non-hypervisor development Linux guest was used as the first managed host so the agent and service-discovery workflow could be validated without introducing risk to core infrastructure.
+A non-hypervisor development Linux guest was used as the first managed host so the agent, service-discovery, classification, rule-targeting, and state-transition workflows could be validated without introducing risk to core infrastructure.
 
 Validated onboarding workflow:
 
@@ -123,15 +123,27 @@ The first Linux discovery produced a useful baseline covering:
 * TCP connection count
 * uptime
 
-The first host was then classified using the custom taxonomy and flexible labels. A filesystem monitoring rule was targeted through folder scope and multiple custom host tags, then its effective service parameters were inspected to confirm that the intended warning and critical thresholds were actually applied.
+The first host was classified using the custom taxonomy and flexible labels. A filesystem monitoring rule was targeted through folder scope and multiple custom host tags, then its effective service parameters were inspected to confirm that the intended warning and critical thresholds were applied.
 
-This validates the planned scale model of folder inheritance plus reusable classifications plus rule-based configuration rather than per-host tuning.
+Controlled state-transition testing was also completed:
 
-Remaining Phase 2 work includes validating expected host and service state transitions, confirming rollback or agent removal behavior where useful, and deciding whether any additional baseline rules are needed before core-service onboarding.
+* a harmless temporary failed systemd unit caused the Systemd Service Summary to move from OK to CRIT, then return to OK after the failure state was cleared
+* stopping the Checkmk agent socket caused the Check_MK service to report a critical agent-data failure, then return to OK after the listener was restored
+* shutting down the development VM caused the host to transition to DOWN, then automatically recover to UP with all monitored services returning to healthy state after the VM restarted
+
+These tests demonstrate that Checkmk distinguishes service failure, monitoring-agent failure, and complete host unavailability, and that each condition recovers automatically when the underlying state is restored.
+
+An explicit agent uninstall and reinstall test was judged unnecessary because communication-loss and recovery behavior were already validated without adding avoidable configuration churn.
+
+Phase 2 acceptance is satisfied because onboarding, inheritance, classification, rule targeting, problem detection, and recovery behavior have all been demonstrated on a low-risk host.
 
 ### Phase 3: Core guest coverage
 
-After the initial guest and configuration taxonomy are stable, expand monitoring to critical workloads such as:
+Status: **Next**
+
+Expand monitoring to critical workloads using the standards validated in Phase 2.
+
+Initial targets include:
 
 * DNS services
 * Vaultwarden
@@ -140,6 +152,8 @@ After the initial guest and configuration taxonomy are stable, expand monitoring
 * monitoring platform endpoints
 
 Application checks should validate meaningful service availability rather than only process state where practical.
+
+The first recommended Phase 3 target is DNS because it is a foundational dependency, has clear service-health validation paths, and provides a useful production-class onboarding test before higher-level applications are added.
 
 ### Phase 4: Network infrastructure
 
