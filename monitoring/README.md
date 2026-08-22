@@ -8,7 +8,7 @@ The current metrics stack is hosted on a dedicated Ubuntu virtual machine and us
 
 Checkmk Community is deployed on a separate Debian virtual machine as a complementary infrastructure and service-monitoring layer. Its role is host state, service state, Linux agent monitoring, SNMP monitoring, active checks, and infrastructure-focused notifications where an operational state model is more useful than time-series analysis.
 
-See [`checkmk-plan.md`](checkmk-plan.md) for the deployment and evaluation plan.
+See [`checkmk-plan.md`](checkmk-plan.md) for the deployment and evaluation plan and [`checkmk-configuration-standards.md`](checkmk-configuration-standards.md) for the current folder, classification, label, and rule-targeting standards.
 
 ## Monitoring architecture
 
@@ -126,6 +126,9 @@ The current platform state includes:
 * successful isolated restore validation
 * scalable folder hierarchy for configuration inheritance
 * first Linux agent onboarding completed successfully
+* custom classification taxonomy defined
+* flexible host labels applied
+* rule targeting through folder scope and host tags validated
 
 Its intended responsibilities include:
 
@@ -143,13 +146,17 @@ Checkmk folders are treated as configuration-inheritance boundaries rather than 
 
 The initial structure separates production and development environments and introduces technology or platform branches where they provide useful inherited configuration. The hierarchy will remain intentionally shallow until additional structure is justified by actual monitoring requirements.
 
-The planned classification model uses:
+The classification model uses:
 
 * folders for inherited configuration and broad organizational boundaries
 * host tags for controlled cross-cutting classifications used by rules
 * labels for flexible metadata that may evolve over time
 
-The host-tag and label taxonomy will be defined before broad host onboarding so rules can scale without relying on per-host configuration.
+The validated custom host-tag dimensions are Environment, Service Criticality, Platform, Virtualization, and Service Class. Labels are used for metadata such as service role, backup policy, and hypervisor platform where a controlled host tag would add unnecessary rigidity.
+
+A filesystem monitoring rule was successfully scoped to a development Linux VM using folder placement plus custom host-tag conditions. Effective service parameters were then inspected to confirm that the intended warning and critical thresholds were actually applied.
+
+This confirms that the classification model is operational, not merely descriptive.
 
 ## Linux agent onboarding
 
@@ -166,6 +173,7 @@ The sanitized workflow is:
 7. review discovered labels and services before acceptance
 8. activate the configuration
 9. confirm the host and accepted services report healthy states
+10. verify effective parameters when new rules or classifications are introduced
 
 The initial discovered monitoring baseline includes agent health, CPU, memory, filesystems, network interfaces, kernel performance, systemd summaries, time synchronization, TCP connections, and uptime.
 
@@ -203,13 +211,14 @@ Checkmk uses a similar layered validation model:
 10. confirm the agent listener is reachable only through the intended management path
 11. confirm service discovery returns expected host and service data
 12. confirm accepted services report healthy states
-13. validate notification delivery after notification rules are introduced
+13. confirm classification-based rules produce the intended effective parameters
+14. validate notification delivery after notification rules are introduced
 
 The Phase 1 recovery test successfully restored the Checkmk VM from Proxmox backup with networking disconnected, then validated operating-system startup, Checkmk version, site presence, site data, and site service state.
 
-The first Phase 2 onboarding test successfully established registered agent communication, scoped network access, service discovery, and active monitoring for a development Linux guest.
+The first Phase 2 onboarding test successfully established registered agent communication, scoped network access, service discovery, active monitoring, reusable classification, and effective rule targeting for a development Linux guest.
 
-This prevents false positives where a monitoring UI is online but the underlying collection, recovery, or notification path is broken.
+This prevents false positives where a monitoring UI is online but the underlying collection, recovery, configuration, or notification path is broken.
 
 ## Maintenance model
 
@@ -253,13 +262,14 @@ Rollback protection is selected before changes based on risk and available stora
 9. **Validate notification delivery.** A firing rule or critical service state is not enough if the notification path is broken.
 10. **Validate recovery, not only backup creation.** A successful backup job is not sufficient evidence until restore behavior has been tested.
 11. **Design for inheritance before scale.** Folder, tag, label, and rule structure should be established before onboarding large numbers of hosts.
+12. **Verify effective configuration.** Creating a rule is not sufficient until the intended service shows the resulting effective parameters.
 
 ## Current monitoring coverage
 
 The validated Prometheus stack currently includes Proxmox host metrics, Proxmox virtualization metrics, and UPS-related monitoring through Prometheus and Grafana.
 
-The Checkmk platform is deployed, operational, and restore-validated. The first development Linux guest is now actively monitored through a registered Checkmk agent with service discovery completed successfully.
+The Checkmk platform is deployed, operational, and restore-validated. The first development Linux guest is actively monitored through a registered Checkmk agent, and the initial classification and rule-targeting model has been validated.
 
-The next Checkmk task is to define host tags, labels, and inherited folder settings before expanding monitoring to core services.
+The next Checkmk work is to validate state transitions and then expand monitoring to core services using the established onboarding and classification standards.
 
 See [`checkmk-plan.md`](checkmk-plan.md) for the Checkmk rollout sequence and [`alerting-roadmap.md`](alerting-roadmap.md) for the Prometheus alerting backlog.
