@@ -15,7 +15,7 @@ Key changes:
 * validated restored Debian startup, Checkmk version, site presence, site data, and site service state
 * removed the temporary restore-test VM after successful validation
 
-Phase 1 is now complete. The next Checkmk milestone is low-risk Linux guest onboarding and agent/service-discovery validation.
+Phase 1 is now complete.
 
 ### Reworked Proxmox backup scheduling by workload
 
@@ -35,6 +35,38 @@ The file-services container repeatedly stalled during Snapshot-mode backup at sn
 Confirmed that the Proxmox backup target is a dedicated ZFS dataset on the mirrored primary pool.
 
 This provides local recovery protection and remains available after a single mirrored-disk failure, but it is not an independent recovery copy against complete pool or host loss. An independent backup destination remains a future resilience improvement.
+
+### Performed development VM maintenance
+
+Updated the development Linux VM before establishing its monitoring baseline.
+
+Key changes:
+
+* created temporary Proxmox rollback protection before maintenance
+* applied current operating-system package updates
+* completed the required reboot
+* validated system health after restart
+* validated PostgreSQL service state
+
+The maintenance established a clean baseline before the host was introduced into Checkmk monitoring.
+
+### Began Checkmk Phase 2 Linux onboarding
+
+Established the initial scalable Checkmk folder hierarchy and successfully onboarded the first low-risk Linux guest.
+
+Key changes:
+
+* introduced environment and platform-oriented folders for configuration inheritance
+* installed the Checkmk Linux agent on the development guest
+* registered the agent with the Checkmk site
+* restricted the agent listener so only the monitoring server can reach it
+* validated agent connectivity and completed service discovery
+* reviewed discovered host labels and service checks before acceptance
+* activated monitoring and confirmed the host and accepted services reported healthy states
+
+The initial service baseline includes agent health, CPU, memory, filesystems, network interfaces, kernel performance, systemd summaries, time synchronization, TCP connections, and uptime.
+
+The next Checkmk configuration task is to define standardized host tags, labels, and inherited folder settings before broader onboarding.
 
 ## 2026-08-21
 
