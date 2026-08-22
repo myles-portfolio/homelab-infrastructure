@@ -44,6 +44,22 @@ The dedicated VM provides workload isolation, an independent maintenance boundar
 
 Checkmk is not installed directly on the Proxmox host.
 
+## Configuration structure
+
+The Checkmk folder hierarchy is designed as a configuration-inheritance model rather than only a visual filing system.
+
+The initial hierarchy separates production and development environments, then introduces technology or platform boundaries only where they provide useful inheritance behavior.
+
+The operating model is:
+
+* **Folders** define configuration inheritance boundaries and broad organizational structure.
+* **Host tags** will define controlled, mutually exclusive classifications that can be referenced consistently in rules.
+* **Labels** will carry flexible metadata that does not justify a rigid folder or tag dimension.
+
+The initial folder structure includes production and development roots, with Linux, infrastructure, monitoring, appliance, home-automation, and network branches introduced only where currently useful. Additional branches will be added as monitoring coverage expands rather than creating speculative empty structure.
+
+Before broad onboarding, a standard host-tag and label taxonomy will be defined for attributes such as environment, criticality, platform, virtualization type, monitoring method, and service role.
+
 ## Deployment sequence
 
 ### Phase 1: Platform deployment
@@ -67,19 +83,43 @@ Phase 1 acceptance is satisfied because both platform operation and VM-level rec
 
 ### Phase 2: Low-risk onboarding
 
-Begin with a non-hypervisor Linux guest so the Checkmk agent workflow can be learned and validated without modifying the Proxmox host.
+Status: **In progress, initial Linux onboarding validated**
 
-Validation should include:
+A non-hypervisor development Linux guest was used as the first managed host so the agent and service-discovery workflow could be validated without introducing risk to core infrastructure.
 
-* successful agent registration or connectivity
-* service discovery
-* CPU, memory, filesystem, and network checks
-* expected host and service state transitions
-* clean removal or rollback of the agent if required
+Validated onboarding workflow:
+
+1. place the host in the appropriate Checkmk folder
+2. install the Checkmk Linux agent package
+3. register the agent with the Checkmk site
+4. restrict the agent listener so only the monitoring server can reach it
+5. validate agent connectivity
+6. run service discovery
+7. review discovered host labels and services before acceptance
+8. activate the resulting monitoring configuration
+9. confirm the host and accepted services report healthy states
+
+The first Linux discovery produced a useful baseline covering:
+
+* Checkmk agent health
+* CPU load and utilization
+* memory utilization
+* filesystem usage
+* network interface state
+* kernel performance
+* mount-option checks
+* systemd service and socket summaries
+* time synchronization
+* TCP connection count
+* uptime
+
+The next Phase 2 task is to define host tags, labels, and inherited folder settings before onboarding additional hosts. This prevents default-only configuration from being replicated across the environment and creates a scalable rules model from the beginning.
+
+Additional Phase 2 validation will include expected host and service state transitions and clean agent removal or rollback where appropriate.
 
 ### Phase 3: Core guest coverage
 
-After the initial guest is stable, expand monitoring to critical workloads such as:
+After the initial guest and configuration taxonomy are stable, expand monitoring to critical workloads such as:
 
 * DNS services
 * Vaultwarden
