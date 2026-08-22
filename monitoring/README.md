@@ -124,6 +124,8 @@ The current platform state includes:
 * validated web interface and site services
 * workload-specific Proxmox backup coverage
 * successful isolated restore validation
+* scalable folder hierarchy for configuration inheritance
+* first Linux agent onboarding completed successfully
 
 Its intended responsibilities include:
 
@@ -134,6 +136,38 @@ Its intended responsibilities include:
 * infrastructure-focused notifications
 
 Broad notification coverage will be introduced only after monitored conditions and ownership boundaries are defined.
+
+## Checkmk configuration model
+
+Checkmk folders are treated as configuration-inheritance boundaries rather than only visual organization.
+
+The initial structure separates production and development environments and introduces technology or platform branches where they provide useful inherited configuration. The hierarchy will remain intentionally shallow until additional structure is justified by actual monitoring requirements.
+
+The planned classification model uses:
+
+* folders for inherited configuration and broad organizational boundaries
+* host tags for controlled cross-cutting classifications used by rules
+* labels for flexible metadata that may evolve over time
+
+The host-tag and label taxonomy will be defined before broad host onboarding so rules can scale without relying on per-host configuration.
+
+## Linux agent onboarding
+
+The first Linux guest onboarding has been validated end to end.
+
+The sanitized workflow is:
+
+1. place the host in the correct Checkmk folder
+2. install the Checkmk Linux agent package
+3. register the agent with the Checkmk site
+4. restrict the agent listener to the monitoring server where host firewalling is enabled
+5. verify agent connectivity
+6. run service discovery
+7. review discovered labels and services before acceptance
+8. activate the configuration
+9. confirm the host and accepted services report healthy states
+
+The initial discovered monitoring baseline includes agent health, CPU, memory, filesystems, network interfaces, kernel performance, systemd summaries, time synchronization, TCP connections, and uptime.
 
 ## Monitoring VMs
 
@@ -165,12 +199,17 @@ Checkmk uses a similar layered validation model:
 6. confirm administrative authentication works
 7. confirm backup coverage exists
 8. confirm a backup restores successfully in an isolated temporary VM
-9. validate agent connectivity and service discovery as hosts are onboarded
-10. validate notification delivery after notification rules are introduced
+9. confirm the Linux agent is installed and registered
+10. confirm the agent listener is reachable only through the intended management path
+11. confirm service discovery returns expected host and service data
+12. confirm accepted services report healthy states
+13. validate notification delivery after notification rules are introduced
 
 The Phase 1 recovery test successfully restored the Checkmk VM from Proxmox backup with networking disconnected, then validated operating-system startup, Checkmk version, site presence, site data, and site service state.
 
-This prevents a false positive where a monitoring UI is online but the underlying collection, recovery, or notification path is broken.
+The first Phase 2 onboarding test successfully established registered agent communication, scoped network access, service discovery, and active monitoring for a development Linux guest.
+
+This prevents false positives where a monitoring UI is online but the underlying collection, recovery, or notification path is broken.
 
 ## Maintenance model
 
@@ -204,7 +243,7 @@ Rollback protection is selected before changes based on risk and available stora
 ## Observability principles
 
 1. **Monitor dependencies, not just hosts.** A running VM does not prove the hosted service is functional.
-2. **Validate collection paths.** Prometheus target state is evidence that data is actually being scraped.
+2. **Validate collection paths.** Prometheus target state or Checkmk agent connectivity is evidence that data is actually being collected.
 3. **Keep visualization separate from collection.** Grafana and Prometheus have different failure modes.
 4. **Use exporters deliberately.** Exporters extend visibility into systems that do not expose Prometheus-native metrics.
 5. **Use infrastructure checks deliberately.** Checkmk should add operational state visibility rather than duplicate every Prometheus metric.
@@ -213,11 +252,14 @@ Rollback protection is selected before changes based on risk and available stora
 8. **Avoid duplicate notifications.** A condition monitored by multiple platforms should normally have one authoritative notification path.
 9. **Validate notification delivery.** A firing rule or critical service state is not enough if the notification path is broken.
 10. **Validate recovery, not only backup creation.** A successful backup job is not sufficient evidence until restore behavior has been tested.
+11. **Design for inheritance before scale.** Folder, tag, label, and rule structure should be established before onboarding large numbers of hosts.
 
 ## Current monitoring coverage
 
 The validated Prometheus stack currently includes Proxmox host metrics, Proxmox virtualization metrics, and UPS-related monitoring through Prometheus and Grafana.
 
-The Checkmk platform is deployed, operational, and restore-validated. Phase 1 is complete. The next step is onboarding a low-risk Linux guest and validating the Checkmk agent and service-discovery workflow.
+The Checkmk platform is deployed, operational, and restore-validated. The first development Linux guest is now actively monitored through a registered Checkmk agent with service discovery completed successfully.
+
+The next Checkmk task is to define host tags, labels, and inherited folder settings before expanding monitoring to core services.
 
 See [`checkmk-plan.md`](checkmk-plan.md) for the Checkmk rollout sequence and [`alerting-roadmap.md`](alerting-roadmap.md) for the Prometheus alerting backlog.
