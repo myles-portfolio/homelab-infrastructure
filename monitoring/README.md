@@ -6,7 +6,7 @@ This section documents the sanitized monitoring architecture used by the homelab
 
 The current metrics stack is hosted on a dedicated Ubuntu virtual machine and uses Docker Compose to run Prometheus, Grafana, and a NUT exporter. Prometheus also scrapes host-level metrics from the Proxmox VE host through Node Exporter and a Proxmox-specific exporter.
 
-Checkmk Community is now deployed on a separate Debian virtual machine as a complementary infrastructure and service-monitoring layer. Its role is host state, service state, Linux agent monitoring, SNMP monitoring, active checks, and infrastructure-focused notifications where an operational state model is more useful than time-series analysis.
+Checkmk Community is deployed on a separate Debian virtual machine as a complementary infrastructure and service-monitoring layer. Its role is host state, service state, Linux agent monitoring, SNMP monitoring, active checks, and infrastructure-focused notifications where an operational state model is more useful than time-series analysis.
 
 See [`checkmk-plan.md`](checkmk-plan.md) for the deployment and evaluation plan.
 
@@ -122,8 +122,8 @@ The current platform state includes:
 * stable internal addressing and DNS
 * operational Checkmk site
 * validated web interface and site services
-* centralized Proxmox backup coverage
-* restore validation in progress
+* workload-specific Proxmox backup coverage
+* successful isolated restore validation
 
 Its intended responsibilities include:
 
@@ -164,9 +164,11 @@ Checkmk uses a similar layered validation model:
 5. confirm the web interface responds
 6. confirm administrative authentication works
 7. confirm backup coverage exists
-8. confirm a backup can be restored successfully
+8. confirm a backup restores successfully in an isolated temporary VM
 9. validate agent connectivity and service discovery as hosts are onboarded
 10. validate notification delivery after notification rules are introduced
+
+The Phase 1 recovery test successfully restored the Checkmk VM from Proxmox backup with networking disconnected, then validated operating-system startup, Checkmk version, site presence, site data, and site service state.
 
 This prevents a false positive where a monitoring UI is online but the underlying collection, recovery, or notification path is broken.
 
@@ -216,6 +218,6 @@ Rollback protection is selected before changes based on risk and available stora
 
 The validated Prometheus stack currently includes Proxmox host metrics, Proxmox virtualization metrics, and UPS-related monitoring through Prometheus and Grafana.
 
-The Checkmk platform is deployed and operational. Phase 1 remains open only for controlled backup restore validation. After that, the next step is onboarding a low-risk Linux guest and validating the Checkmk agent and service-discovery workflow.
+The Checkmk platform is deployed, operational, and restore-validated. Phase 1 is complete. The next step is onboarding a low-risk Linux guest and validating the Checkmk agent and service-discovery workflow.
 
 See [`checkmk-plan.md`](checkmk-plan.md) for the Checkmk rollout sequence and [`alerting-roadmap.md`](alerting-roadmap.md) for the Prometheus alerting backlog.
