@@ -17,6 +17,7 @@ The objective is to avoid per-host configuration where inherited settings, contr
 7. Review effective parameters after introducing a new rule to verify the intended scope and resulting values.
 8. Use stable semantic host identifiers rather than IP addresses as Checkmk host names.
 9. Use dedicated least-privilege monitoring credentials for authenticated active checks rather than reusing application service accounts.
+10. Tune only the specific parameter responsible for a non-actionable condition rather than suppressing an entire service check.
 
 ## Host naming standard
 
@@ -53,7 +54,7 @@ Naming rules:
 * store the network address separately in the Checkmk IPv4 or IPv6 address field
 * use the Alias field for a friendly product or workload name when useful
 
-This separates system identity from addressing and implementation details. For example, a DNS host may remain `prod-dns-01` even if the DNS software changes later.
+This separates system identity from addressing and implementation details.
 
 ## Folder model
 
@@ -94,8 +95,6 @@ Custom host tags are grouped under a common classification topic.
 | `high` | High |
 | `normal` | Normal |
 | `low` | Low |
-
-This classification is intentionally separate from Checkmk's existing built-in criticality tag group so operational importance is not mixed with lifecycle or monitoring-state semantics.
 
 ### Platform
 
@@ -142,36 +141,26 @@ Examples:
 role:dns
 role:application-development
 role:fileshare
+role:monitoring
 backup:daily
 hypervisor:proxmox
 ```
 
-Do not create labels that duplicate existing tag values or Checkmk-discovered metadata. For example, operating system, device type, and environment should not be repeated as labels when they already exist elsewhere in the configuration model.
+Do not create labels that duplicate existing tag values or Checkmk-discovered metadata.
 
 ## Rule targeting standard
 
 Rules should normally target reusable classifications rather than individual hosts.
 
-A validated example applies development filesystem thresholds to systems matching all of the following conditions:
+Validated patterns include:
 
-* folder: Development Linux systems
-* environment: Development
-* service criticality: Normal
-* platform: Linux
-* virtualization: VM
+* development filesystem thresholds targeted through environment, platform, virtualization, and folder scope
+* active DNS checks targeted through production, core-infrastructure, and DNS-role classifications
+* authenticated SMB checks targeted through production, core-infrastructure, and file-share role metadata
+* application web checks targeted through service class and service-role metadata
+* Linux-container memory tuning targeted through platform and virtualization tags
 
-The rule sets filesystem used-space thresholds to:
-
-* warning: 80 percent
-* critical: 90 percent
-
-Effective service parameters were reviewed after activation and confirmed that the intended rule supplied the resulting thresholds.
-
-A second validated pattern uses an active DNS check targeted by reusable classifications and a DNS-role label. The check queries the monitored DNS host directly and validates that a known internal record resolves to its expected address. This tests application behavior rather than only host or process state.
-
-A third pattern uses an authenticated SMB active check targeted by Production, Core Infrastructure, and a file-share role label. The monitoring credential is a dedicated non-login Samba account with read-only access to the monitored share. Read access is tested explicitly, and write access is intentionally denied.
-
-This pattern demonstrates the intended operating model:
+The intended operating model is:
 
 ```text
 Folder inheritance
@@ -220,13 +209,33 @@ Requirements:
 
 For SMB monitoring, the validated pattern uses a dedicated Samba account that can authenticate and enumerate a monitored share but cannot create or modify content.
 
+## Linux container memory thresholds
+
+Small Linux containers can show elevated page-table usage as a percentage of their limited assigned RAM even when ordinary memory availability is healthy.
+
+The effective parameters of the Linux memory service should be inspected before changing thresholds. In the current container baseline, the non-actionable warning was isolated specifically to the page-table percentage component.
+
+A dedicated rule therefore changes only the page-table thresholds for hosts matching:
+
+```text
+Platform = Linux
+Virtualization = Container
+```
+
+Current page-table levels:
+
+* warning: 15 percent
+* critical: 25 percent
+
+All other Linux memory parameters remain at their normal defaults. This preserves RAM, swap, committed-memory, and other memory alerts while reducing known container-specific noise.
+
 ## Container considerations
 
 Linux containers may require additional runtime capabilities for modern systemd services used by monitoring agents. When a service fails with a namespace-related systemd status, prefer correcting the container capability model rather than disabling service hardening.
 
 For the current unprivileged Proxmox LXC model, enabling the required nesting capability resolved namespace failures affecting the Checkmk agent controller and other systemd services.
 
-Container network configuration should also be kept intentional. A production DNS container was found to have an unused DHCPv6 setting alongside static IPv4 addressing. The unresolved DHCPv6 request delayed network readiness and therefore delayed DNS service startup. Removing the unused DHCPv6 configuration restored prompt service startup after reboot.
+Container network configuration should also be kept intentional. Unused DHCPv6 configuration can delay network readiness and dependent service startup, so unused address-family configuration should be removed rather than left to time out during boot.
 
 A privileged file-services container exposed a separate expected limitation: the guest AppArmor loader could not replace kernel profiles while the container remained confined by the Proxmox host. The guest AppArmor loader was disabled after confirming that host-level confinement remained in place, preventing a non-actionable failed-unit alert without weakening the container boundary.
 
