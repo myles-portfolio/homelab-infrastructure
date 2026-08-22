@@ -48,7 +48,7 @@ Checkmk is not installed directly on the Proxmox host.
 
 ### Phase 1: Platform deployment
 
-Status: **In progress, restore validation pending**
+Status: **Complete**
 
 Completed work:
 
@@ -58,17 +58,12 @@ Completed work:
 4. Installed the supported Checkmk Community package.
 5. Created the initial Checkmk site.
 6. Validated the Checkmk web interface and site services.
-7. Added the VM to centralized Proxmox backup coverage.
+7. Added the VM to workload-specific Proxmox backup coverage.
+8. Created a fresh backup and restored it as a temporary isolated VM.
+9. Validated restored Debian startup, Checkmk installation, site presence, site service state, and site data.
+10. Removed the temporary restore-test VM after successful validation.
 
-Remaining validation:
-
-1. complete a fresh backup run
-2. restore the Checkmk VM backup as a temporary isolated test VM
-3. boot the restored guest with networking disconnected to avoid duplicate addressing
-4. validate Debian startup, Checkmk installation, site presence, and site service state
-5. remove the temporary restore-test VM after successful validation
-
-The restore test is required before Phase 1 is considered complete. Successful backup creation alone is not treated as proof of recoverability.
+Phase 1 acceptance is satisfied because both platform operation and VM-level recoverability have been demonstrated.
 
 ### Phase 2: Low-risk onboarding
 
@@ -156,14 +151,13 @@ The preferred result is one authoritative notification path per operational cond
 
 ## Backup and recovery
 
-Checkmk should be protected at two layers where practical:
+Checkmk is currently protected by a workload-specific Proxmox VM backup policy for full guest recovery.
 
-* Proxmox VM backup for full guest recovery
-* Checkmk-native site backup for application-level recovery and migration
+VM-level recovery has been validated through an isolated restore test. The restored guest booted successfully and retained the Checkmk installation, monitoring site, site data, and service state.
 
-A scheduled Proxmox backup job now covers the Checkmk VM. A controlled restore test is the current Phase 1 acceptance requirement.
+A Checkmk-native site backup remains a planned second recovery layer for application-level recovery and migration.
 
-Checkmk-native site backup remains a planned second recovery layer after the initial platform restore path is validated.
+The current Proxmox backup destination resides on the redundant primary ZFS pool. This protects against guest-level failures and a single mirrored-disk failure, but it is not an independent copy against complete pool or host loss. An independent backup destination remains a future resilience improvement.
 
 Recovery documentation should include site restoration, version compatibility, credentials handling, and post-restore validation.
 
