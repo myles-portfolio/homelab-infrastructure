@@ -135,7 +135,9 @@ Application checks should validate meaningful service availability rather than o
 
 #### DNS onboarding
 
-The first production-class Phase 3 target is the DNS service.
+Status: **Complete**
+
+The first production-class Phase 3 target was the DNS service.
 
 Completed work:
 
@@ -148,12 +150,35 @@ Completed work:
 * validated agent connectivity and Linux service discovery
 * added an active DNS check targeted through Production, Core Infrastructure, and `role:dns` metadata
 * validated a known internal DNS record against its expected address
+* added a second active DNS check for public name resolution through the upstream resolver path
+* confirmed both internal and upstream DNS checks report healthy states
 
-This active check proves that the DNS service is answering application-level queries correctly, rather than merely confirming that the host and DNS process are running.
-
-The remaining DNS onboarding work is to add an upstream-resolution check using a stable public record. This will distinguish local-record availability from recursive or forwarded Internet DNS resolution.
+Together, the active checks prove that the DNS service can serve local records and resolve public records through its upstream path, rather than merely confirming that the host and DNS process are running.
 
 A page-table memory warning on the small LXC remains under observation. Overall memory availability is healthy, and broad memory alert suppression was deliberately avoided because no sufficiently specific page-table threshold rule was identified.
+
+#### Vaultwarden onboarding
+
+Status: **Complete**
+
+Vaultwarden was onboarded as the second production-class Phase 3 workload.
+
+Completed work:
+
+* created the host using the semantic production authentication-service naming standard
+* stored the container network address separately from the Checkmk host identifier
+* applied Production, Application, and authentication-role metadata for reusable rule targeting
+* installed the Checkmk Linux agent on the Vaultwarden container
+* registered the agent with the Checkmk site using the dedicated machine-account automation secret
+* verified the resulting pull-agent connection and site-issued certificate trust relationship
+* confirmed the Check_MK Agent service returned to OK after TLS registration replaced legacy-mode monitoring
+* completed Linux service discovery and baseline monitoring
+* added an active HTTPS check against the user-facing Vaultwarden endpoint
+* configured expected HTTP status, response-time thresholds, and certificate-expiration thresholds
+* scoped the HTTPS rule through Production, Application, and `role:authentication` metadata rather than an explicit host condition
+* confirmed the Vaultwarden HTTPS service reports healthy state
+
+This monitoring model distinguishes container health, encrypted Checkmk agent communication, and actual user-facing application availability through the reverse-proxy and TLS path.
 
 ### Phase 4: Network infrastructure
 
