@@ -68,7 +68,7 @@ The initial custom classification taxonomy is defined and validated:
 
 Flexible labels are used for metadata such as service role, backup policy, and hypervisor platform. Built-in Checkmk classifications remain responsible for agent, SNMP, address-family, and discovered operating-system or device metadata.
 
-See [`checkmk-configuration-standards.md`](checkmk-configuration-standards.md) for the sanitized taxonomy, label conventions, and rule-targeting standard.
+A semantic host-naming standard is also established so Checkmk object identity remains independent of IP addressing and implementation details. See [`checkmk-configuration-standards.md`](checkmk-configuration-standards.md) for the naming convention, taxonomy, label conventions, and rule-targeting standard.
 
 ## Deployment sequence
 
@@ -109,37 +109,17 @@ Validated onboarding workflow:
 8. activate the resulting monitoring configuration
 9. confirm the host and accepted services report healthy states
 
-The first Linux discovery produced a useful baseline covering:
-
-* Checkmk agent health
-* CPU load and utilization
-* memory utilization
-* filesystem usage
-* network interface state
-* kernel performance
-* mount-option checks
-* systemd service and socket summaries
-* time synchronization
-* TCP connection count
-* uptime
+The first Linux discovery produced a useful baseline covering agent health, CPU, memory, filesystem usage, interfaces, kernel performance, systemd summaries, time synchronization, TCP connections, and uptime.
 
 The first host was classified using the custom taxonomy and flexible labels. A filesystem monitoring rule was targeted through folder scope and multiple custom host tags, then its effective service parameters were inspected to confirm that the intended warning and critical thresholds were applied.
 
-Controlled state-transition testing was also completed:
-
-* a harmless temporary failed systemd unit caused the Systemd Service Summary to move from OK to CRIT, then return to OK after the failure state was cleared
-* stopping the Checkmk agent socket caused the Check_MK service to report a critical agent-data failure, then return to OK after the listener was restored
-* shutting down the development VM caused the host to transition to DOWN, then automatically recover to UP with all monitored services returning to healthy state after the VM restarted
-
-These tests demonstrate that Checkmk distinguishes service failure, monitoring-agent failure, and complete host unavailability, and that each condition recovers automatically when the underlying state is restored.
-
-An explicit agent uninstall and reinstall test was judged unnecessary because communication-loss and recovery behavior were already validated without adding avoidable configuration churn.
+Controlled state-transition testing was also completed for service failure, agent communication failure, and full host outage. In each case, Checkmk detected the expected state transition and returned automatically to a healthy state after recovery.
 
 Phase 2 acceptance is satisfied because onboarding, inheritance, classification, rule targeting, problem detection, and recovery behavior have all been demonstrated on a low-risk host.
 
 ### Phase 3: Core guest coverage
 
-Status: **Next**
+Status: **In progress**
 
 Expand monitoring to critical workloads using the standards validated in Phase 2.
 
@@ -153,7 +133,27 @@ Initial targets include:
 
 Application checks should validate meaningful service availability rather than only process state where practical.
 
-The first recommended Phase 3 target is DNS because it is a foundational dependency, has clear service-health validation paths, and provides a useful production-class onboarding test before higher-level applications are added.
+#### DNS onboarding
+
+The first production-class Phase 3 target is the DNS service.
+
+Completed work:
+
+* corrected the Checkmk host naming approach so semantic host IDs are used and network addresses are stored separately
+* recreated the development and DNS hosts using the new naming convention
+* onboarded the DNS container under the production infrastructure hierarchy
+* installed and registered the Checkmk Linux agent
+* resolved LXC namespace failures by enabling the required nesting capability rather than weakening systemd service hardening
+* identified and removed an unused DHCPv6 configuration that delayed network readiness and DNS service startup after reboot
+* validated agent connectivity and Linux service discovery
+* added an active DNS check targeted through Production, Core Infrastructure, and `role:dns` metadata
+* validated a known internal DNS record against its expected address
+
+This active check proves that the DNS service is answering application-level queries correctly, rather than merely confirming that the host and DNS process are running.
+
+The remaining DNS onboarding work is to add an upstream-resolution check using a stable public record. This will distinguish local-record availability from recursive or forwarded Internet DNS resolution.
+
+A page-table memory warning on the small LXC remains under observation. Overall memory availability is healthy, and broad memory alert suppression was deliberately avoided because no sufficiently specific page-table threshold rule was identified.
 
 ### Phase 4: Network infrastructure
 
