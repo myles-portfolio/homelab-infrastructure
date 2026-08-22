@@ -182,9 +182,9 @@ This monitoring model distinguishes container health, encrypted Checkmk agent co
 
 #### File services onboarding
 
-Status: **In progress**
+Status: **Complete**
 
-File services are being onboarded as the third production-class Phase 3 workload.
+File services were onboarded as the third production-class Phase 3 workload.
 
 Completed work:
 
@@ -203,8 +203,10 @@ Completed work:
 * created a dedicated non-login Samba monitoring account with read-only share access
 * verified the monitoring credential can enumerate the share but cannot create content
 * configured an active SMB share check targeted through Production, Core Infrastructure, and `role:fileshare` metadata
+* confirmed the active SMB share check reports healthy state
+* added a local DNS record for the file-services endpoint so dependent systems can migrate away from direct IP references over time
 
-The SMB active check is pending its first completed monitoring result. File-services onboarding will be considered complete after the share-access check reports healthy and the final service state is reviewed.
+This monitoring model distinguishes guest health, Samba service health, mounted-storage state, and authenticated share accessibility. The local DNS record also reduces future dependency churn if the file-services address changes again.
 
 ### Phase 4: Network infrastructure
 
