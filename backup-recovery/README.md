@@ -18,11 +18,23 @@ The diagram is intentionally sanitized and does not expose the live environment'
 
 ### Scheduled Proxmox guest backups
 
-Proxmox VE provides scheduled VM and container backups to dedicated backup storage.
+Proxmox VE provides scheduled VM and container backups to dedicated backup storage on the mirrored ZFS pool.
 
-The current job protects the selected guest inventory using snapshot backup mode and ZSTD compression. Retention is configured to preserve multiple recent, daily, weekly, and monthly recovery points rather than retaining only the newest backup.
+Backup jobs are organized by workload rather than using a single all-guests job. This isolates failures, allows different backup modes where needed, and makes retention and recovery requirements easier to manage as services evolve.
 
-A successful backup task confirms that Proxmox created the expected backup artifact. It does not, by itself, prove that the guest can be recovered successfully. Recoverability is therefore validated separately through controlled restore testing.
+Current job groupings include:
+
+* core infrastructure services
+* monitoring
+* Home Assistant
+* file services
+* development workloads
+
+Snapshot mode is used where it works reliably. The file-services container uses Stop mode because repeated Snapshot-mode attempts stalled during snapshot creation, while Stop mode completed successfully and returned the service to normal operation.
+
+ZSTD compression is used for scheduled guest backups. Retention preserves recent, daily, weekly, and monthly recovery points rather than only the newest copy.
+
+A successful backup task confirms that Proxmox created the expected backup artifact. It does not, by itself, prove that the guest can be recovered successfully. Recoverability is validated separately through controlled restore testing.
 
 Typical use:
 
@@ -80,6 +92,16 @@ The file-services container provides external storage for selected application b
 
 A dedicated Samba share and service account are used for the Home Assistant backup path so machine-to-machine access is scoped to the required resource rather than a general-purpose user account.
 
+## Backup storage design
+
+The local Proxmox backup dataset resides on the same mirrored ZFS pool that hosts primary guest storage.
+
+This design provides useful protection against guest loss, bad updates, accidental deletion within a guest, and a single physical disk failure because the ZFS mirror preserves pool availability after one mirror member fails.
+
+It does not provide an independent recovery copy against complete pool loss, host loss, or a failure that affects both the primary guest storage and local backup dataset.
+
+An independent backup destination, such as separate external storage, another host, a NAS, or Proxmox Backup Server, remains a future resilience improvement when practical.
+
 ## Backup scope limitations
 
 Guest-level backup coverage does not automatically include every dataset visible from inside a VM or container.
@@ -135,6 +157,8 @@ The preferred guest restore test is:
 5. validate the primary service or application using local console access where practical
 6. shut down and remove the temporary restored guest after validation
 
+This process has been successfully exercised with the Checkmk monitoring VM. A fresh backup was restored to a temporary isolated VM with networking disconnected, then validated for operating-system startup, Checkmk installation, monitoring site presence, site data, and site service state. The temporary restored VM was removed after validation.
+
 For a monitoring server, validation should include the operating system, installed monitoring software, site or application configuration, and service state rather than merely proving that the guest reaches a login prompt.
 
 A backup job ending successfully proves backup creation. A successful controlled restore and application validation provide evidence that the backup is actually recoverable.
@@ -178,19 +202,21 @@ Restoring an entire VM when only a database needs recovery creates unnecessary i
 3. **Do not confuse snapshots with backups.** Snapshots are primarily short-term rollback tools.
 4. **Validate recoverability, not only backup creation.** A successful backup task is necessary evidence, but a controlled restore test provides stronger proof.
 5. **Understand backup scope.** Guest backups may exclude bind mounts, external datasets, and other storage outside Proxmox-managed guest volumes.
-6. **Remove temporary rollback and restore-test artifacts after validation.**
-7. **Preserve persistent application data when recreating containers.**
-8. **Use the least disruptive recovery method that solves the problem.**
+6. **Isolate backup failures.** Workload-specific jobs prevent one unusual guest from blocking unrelated backups.
+7. **Remove temporary rollback and restore-test artifacts after validation.**
+8. **Preserve persistent application data when recreating containers.**
+9. **Use the least disruptive recovery method that solves the problem.**
 
 ## Current improvement areas
 
-Scheduled Proxmox backup coverage is now in place for the selected guest inventory. The next maturity step is to establish and repeat controlled restore testing so recoverability is demonstrated rather than inferred from successful backup creation.
+Workload-specific scheduled Proxmox backup coverage is now in place for the active guest inventory, and the restore workflow has been validated successfully with a critical monitoring VM.
 
 Additional planned work includes:
 
-* document and periodically repeat guest restore tests
+* periodically repeat guest restore tests for critical workloads
 * identify external or bind-mounted datasets requiring separate backup coverage
 * add Checkmk-native site backups as an application-level recovery layer alongside VM-level protection
 * define restore-test frequency for critical workloads
+* add an independent backup destination when hardware or budget permits
 
 See [`../ROADMAP.md`](../ROADMAP.md) for the broader infrastructure backlog.
