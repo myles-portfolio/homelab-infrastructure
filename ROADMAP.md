@@ -21,7 +21,7 @@ Success criteria:
 
 Checkmk Community is deployed as an infrastructure and service-monitoring layer alongside the existing Prometheus and Grafana observability stack.
 
-Phase 1 platform deployment is complete, and the first Phase 2 Linux host onboarding has been validated. The Checkmk platform is operational, restore-tested, and successfully collecting agent-based host and service data from a low-risk development system.
+Phase 1 platform deployment is complete. The initial Phase 2 Linux onboarding workflow, custom classification taxonomy, flexible labels, and classification-based rule targeting have also been validated on a low-risk development system.
 
 Goals:
 
@@ -34,14 +34,13 @@ Goals:
 
 Next rollout sequence:
 
-1. define Checkmk host tags, labels, and inherited folder settings
-2. validate expected host and service state transitions
-3. expand monitoring to core application and infrastructure guests
-4. add network-device monitoring where supported
-5. onboard the Proxmox host after the monitoring model is validated
-6. define notification ownership between Checkmk and the Prometheus alerting path
+1. validate expected host and service state transitions
+2. expand monitoring to core application and infrastructure guests using the established classification standard
+3. add network-device monitoring where supported
+4. onboard the Proxmox host after the monitoring model is validated
+5. define notification ownership between Checkmk and the Prometheus alerting path
 
-See [`monitoring/checkmk-plan.md`](monitoring/checkmk-plan.md) for the detailed deployment plan.
+See [`monitoring/checkmk-plan.md`](monitoring/checkmk-plan.md) for the detailed deployment plan and [`monitoring/checkmk-configuration-standards.md`](monitoring/checkmk-configuration-standards.md) for the current taxonomy and rule-targeting model.
 
 ### Backup verification and restore testing
 
