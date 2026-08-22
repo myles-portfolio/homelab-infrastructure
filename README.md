@@ -17,7 +17,7 @@ If you are reviewing this repository as a portfolio, these are the best entry po
 7. **Automation case study:** [`home-assistant/hvac/README.md`](home-assistant/hvac/README.md) documents a presence-aware HVAC control system built in Home Assistant.
 8. **Change management:** [`change-management/README.md`](change-management/README.md) describes the lightweight change-control framework used throughout the lab.
 9. **Detailed change examples:** [`change-management/examples/`](change-management/examples/) contains deeper records showing problem analysis, implementation, validation, rollback, and lessons learned.
-10. **History:** [`CHANGELOG.md`](CHANGELOG.md) shows how the environment has evolved over time.
+10. **History:** [`changelog/README.md`](changelog/README.md) shows how the environment has evolved over time.
 11. **Planned work:** [`ROADMAP.md`](ROADMAP.md) tracks future infrastructure and security improvements.
 
 ## What this repository demonstrates
@@ -200,6 +200,15 @@ change-management/
     change-record.md
     maintenance-record.md
 
+changelog/
+  README.md
+  2026/
+    README.md
+    2026-08.md
+    2026-06.md
+    2026-05.md
+    2026-02.md
+
 home-assistant/
   hvac/
     README.md
@@ -232,7 +241,6 @@ proxmox/
 security/
   README.md
 
-CHANGELOG.md
 ROADMAP.md
 SECURITY.md
 .gitignore
