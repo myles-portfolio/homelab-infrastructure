@@ -2,6 +2,40 @@
 
 This changelog is a curated, sanitized history of material homelab changes. It is derived from the internal operational log but intentionally omits exact private IPs, public-facing domains, personal entity identifiers, and other sensitive implementation details.
 
+## 2026-08-22
+
+### Completed Checkmk Phase 1 platform deployment
+
+Closed the initial Checkmk platform deployment phase after validating both normal operation and VM-level recoverability.
+
+Key changes:
+
+* created a fresh Proxmox backup of the Checkmk VM
+* restored the backup to a temporary isolated VM with networking disconnected
+* validated restored Debian startup, Checkmk version, site presence, site data, and site service state
+* removed the temporary restore-test VM after successful validation
+
+Phase 1 is now complete. The next Checkmk milestone is low-risk Linux guest onboarding and agent/service-discovery validation.
+
+### Reworked Proxmox backup scheduling by workload
+
+Replaced the initial all-guests backup approach with workload-specific backup jobs to improve fault isolation and accommodate different backup behavior.
+
+Key changes:
+
+* grouped core infrastructure services into a dedicated scheduled backup job
+* created separate scheduled jobs for monitoring, Home Assistant, file services, and development workloads
+* retained ZSTD compression and recent, daily, weekly, and monthly retention points
+* deferred backup coverage for the inactive media workload until that service is placed into use
+
+The file-services container repeatedly stalled during Snapshot-mode backup at snapshot creation. A Stop-mode backup completed successfully, automatically restarted the container, and normal file access was verified afterward. The file-services schedule therefore uses Stop mode while the other active workloads use Snapshot mode.
+
+### Validated local backup storage design
+
+Confirmed that the Proxmox backup target is a dedicated ZFS dataset on the mirrored primary pool.
+
+This provides local recovery protection and remains available after a single mirrored-disk failure, but it is not an independent recovery copy against complete pool or host loss. An independent backup destination remains a future resilience improvement.
+
 ## 2026-08-21
 
 ### Deployed Checkmk Community monitoring platform
@@ -18,19 +52,11 @@ Key changes:
 * validated Checkmk site services and web administration access
 * documented Checkmk as the primary platform for infrastructure state monitoring while retaining Prometheus for metrics and Grafana for visualization
 
-### Added scheduled Proxmox guest backups
+### Added initial scheduled Proxmox guest backup coverage
 
-Created the first scheduled Proxmox backup job covering the current guest inventory.
+Created the first scheduled Proxmox backup configuration and established controlled restore testing as a required recovery validation step.
 
-Key changes:
-
-* configured centralized guest backup storage
-* enabled scheduled snapshot-mode backups with ZSTD compression
-* applied retention for recent, daily, weekly, and monthly recovery points
-* initiated a fresh backup run for validation
-* established controlled restore testing as a required recovery validation step
-
-Backup creation is not considered sufficient proof of recoverability. A temporary isolated restore of the Checkmk VM remains pending before the Checkmk platform deployment phase is closed.
+This initial configuration was subsequently refined into workload-specific jobs after testing identified a Snapshot-mode issue with the file-services container.
 
 ## 2026-08-17
 
