@@ -129,6 +129,7 @@ The current platform state includes:
 * custom classification taxonomy defined
 * flexible host labels applied
 * rule targeting through folder scope and host tags validated
+* controlled service, agent, and host state-transition testing completed successfully
 
 Its intended responsibilities include:
 
@@ -177,6 +178,31 @@ The sanitized workflow is:
 
 The initial discovered monitoring baseline includes agent health, CPU, memory, filesystems, network interfaces, kernel performance, systemd summaries, time synchronization, TCP connections, and uptime.
 
+## State-transition validation
+
+Phase 2 included controlled failure and recovery testing on the low-risk Linux guest.
+
+Three distinct scenarios were validated:
+
+1. **Service failure**
+   * a temporary systemd unit was intentionally created in a failed state
+   * Checkmk changed the Systemd Service Summary from OK to CRIT
+   * clearing the failed unit returned the service summary to OK
+
+2. **Agent communication failure**
+   * the Checkmk agent listener was temporarily stopped
+   * the Check_MK service reported a critical agent-data failure while the host itself remained reachable
+   * restoring the listener returned agent monitoring to OK
+
+3. **Host outage**
+   * the development VM was shut down cleanly
+   * Checkmk transitioned the host from UP to DOWN
+   * after the VM restarted, the host automatically returned to UP and all accepted services returned to healthy state
+
+These tests demonstrate that Checkmk can distinguish application or service state, monitoring-path failure, and complete host unavailability. They also demonstrate automatic recovery when the underlying condition is corrected.
+
+An agent uninstall and reinstall test was not performed because the communication-loss test already validated the operational failure and recovery path without introducing unnecessary configuration changes.
+
 ## Monitoring VMs
 
 The Prometheus and Grafana stack runs on a dedicated Ubuntu VM rather than directly on the Proxmox host.
@@ -212,13 +238,16 @@ Checkmk uses a similar layered validation model:
 11. confirm service discovery returns expected host and service data
 12. confirm accepted services report healthy states
 13. confirm classification-based rules produce the intended effective parameters
-14. validate notification delivery after notification rules are introduced
+14. confirm service failure and recovery produce the expected state transitions
+15. confirm agent communication failure is distinguishable from host unavailability
+16. confirm host outage and recovery are detected automatically
+17. validate notification delivery after notification rules are introduced
 
 The Phase 1 recovery test successfully restored the Checkmk VM from Proxmox backup with networking disconnected, then validated operating-system startup, Checkmk version, site presence, site data, and site service state.
 
-The first Phase 2 onboarding test successfully established registered agent communication, scoped network access, service discovery, active monitoring, reusable classification, and effective rule targeting for a development Linux guest.
+Phase 2 successfully established registered agent communication, scoped network access, service discovery, active monitoring, reusable classification, effective rule targeting, controlled problem detection, and automatic recovery for a development Linux guest.
 
-This prevents false positives where a monitoring UI is online but the underlying collection, recovery, configuration, or notification path is broken.
+This prevents false positives where a monitoring UI is online but the underlying collection, recovery, configuration, or failure-detection path is broken.
 
 ## Maintenance model
 
@@ -263,13 +292,14 @@ Rollback protection is selected before changes based on risk and available stora
 10. **Validate recovery, not only backup creation.** A successful backup job is not sufficient evidence until restore behavior has been tested.
 11. **Design for inheritance before scale.** Folder, tag, label, and rule structure should be established before onboarding large numbers of hosts.
 12. **Verify effective configuration.** Creating a rule is not sufficient until the intended service shows the resulting effective parameters.
+13. **Test failure modes deliberately.** A monitoring design is not validated until expected service, agent, and host failures produce distinct and recoverable states.
 
 ## Current monitoring coverage
 
 The validated Prometheus stack currently includes Proxmox host metrics, Proxmox virtualization metrics, and UPS-related monitoring through Prometheus and Grafana.
 
-The Checkmk platform is deployed, operational, and restore-validated. The first development Linux guest is actively monitored through a registered Checkmk agent, and the initial classification and rule-targeting model has been validated.
+The Checkmk platform is deployed, operational, restore-validated, and has completed Phase 2 validation. The first development Linux guest is actively monitored through a registered Checkmk agent, the classification and rule-targeting model is validated, and controlled service, agent, and host failure scenarios have all recovered successfully.
 
-The next Checkmk work is to validate state transitions and then expand monitoring to core services using the established onboarding and classification standards.
+The next Checkmk work is Phase 3 core guest coverage, beginning with a foundational infrastructure service and using the established onboarding and classification standards.
 
 See [`checkmk-plan.md`](checkmk-plan.md) for the Checkmk rollout sequence and [`alerting-roadmap.md`](alerting-roadmap.md) for the Prometheus alerting backlog.
