@@ -21,7 +21,7 @@ Success criteria:
 
 Checkmk Community is deployed as an infrastructure and service-monitoring layer alongside the existing Prometheus and Grafana observability stack.
 
-Phase 1 platform deployment is complete. The dedicated Debian VM is operational, the initial Checkmk site is healthy, internal DNS and stable addressing are configured, scheduled Proxmox backup coverage is in place, and a fresh backup has been restored and validated in an isolated temporary VM.
+Phase 1 platform deployment is complete, and the first Phase 2 Linux host onboarding has been validated. The Checkmk platform is operational, restore-tested, and successfully collecting agent-based host and service data from a low-risk development system.
 
 Goals:
 
@@ -34,17 +34,18 @@ Goals:
 
 Next rollout sequence:
 
-1. onboard a low-risk Linux guest and validate the Checkmk agent workflow
-2. expand to core application guests
-3. add network-device monitoring where supported
-4. onboard the Proxmox host after the monitoring model is validated
-5. define notification ownership between Checkmk and the Prometheus alerting path
+1. define Checkmk host tags, labels, and inherited folder settings
+2. validate expected host and service state transitions
+3. expand monitoring to core application and infrastructure guests
+4. add network-device monitoring where supported
+5. onboard the Proxmox host after the monitoring model is validated
+6. define notification ownership between Checkmk and the Prometheus alerting path
 
 See [`monitoring/checkmk-plan.md`](monitoring/checkmk-plan.md) for the detailed deployment plan.
 
 ### Backup verification and restore testing
 
-Scheduled Proxmox backup coverage is now organized into workload-specific jobs rather than one all-guests job. This isolates failures, supports workload-specific backup modes, and allows restore requirements to evolve independently.
+Scheduled Proxmox backup coverage is organized into workload-specific jobs rather than one all-guests job. This isolates failures, supports workload-specific backup modes, and allows restore requirements to evolve independently.
 
 A controlled Checkmk restore test has validated the recovery process for one critical VM. Restore testing should now become a repeatable operational practice rather than a one-time deployment task.
 
