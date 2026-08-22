@@ -56,8 +56,6 @@ The operating model is:
 * **Host tags** define controlled, mutually exclusive classifications that can be referenced consistently in rules.
 * **Labels** carry flexible metadata that does not justify a rigid folder or tag dimension.
 
-The initial folder structure includes production and development roots, with Linux, infrastructure, monitoring, appliance, home-automation, and network branches introduced only where currently useful. Additional branches will be added as monitoring coverage expands rather than creating speculative empty structure.
-
 The initial custom classification taxonomy is defined and validated:
 
 * Environment
@@ -109,106 +107,40 @@ Validated onboarding workflow:
 8. activate the resulting monitoring configuration
 9. confirm the host and accepted services report healthy states
 
-The first Linux discovery produced a useful baseline covering agent health, CPU, memory, filesystem usage, interfaces, kernel performance, systemd summaries, time synchronization, TCP connections, and uptime.
-
-The first host was classified using the custom taxonomy and flexible labels. A filesystem monitoring rule was targeted through folder scope and multiple custom host tags, then its effective service parameters were inspected to confirm that the intended warning and critical thresholds were applied.
-
 Controlled state-transition testing was also completed for service failure, agent communication failure, and full host outage. In each case, Checkmk detected the expected state transition and returned automatically to a healthy state after recovery.
 
 Phase 2 acceptance is satisfied because onboarding, inheritance, classification, rule targeting, problem detection, and recovery behavior have all been demonstrated on a low-risk host.
 
 ### Phase 3: Core guest coverage
 
-Status: **In progress**
-
-Expand monitoring to critical workloads using the standards validated in Phase 2.
-
-Initial targets include:
-
-* DNS services
-* Vaultwarden
-* file services
-* Home Assistant availability
-* monitoring platform endpoints
-
-Application checks should validate meaningful service availability rather than only process state where practical.
-
-#### DNS onboarding
-
 Status: **Complete**
 
-The first production-class Phase 3 target was the DNS service.
+Phase 3 expanded the validated Checkmk model to core production workloads and confirmed that active checks can represent meaningful service behavior instead of only host reachability or process state.
 
-Completed work:
+Completed coverage includes:
 
-* corrected the Checkmk host naming approach so semantic host IDs are used and network addresses are stored separately
-* recreated the development and DNS hosts using the new naming convention
-* onboarded the DNS container under the production infrastructure hierarchy
-* installed and registered the Checkmk Linux agent
-* resolved LXC namespace failures by enabling the required nesting capability rather than weakening systemd service hardening
-* identified and removed an unused DHCPv6 configuration that delayed network readiness and DNS service startup after reboot
-* validated agent connectivity and Linux service discovery
-* added an active DNS check targeted through Production, Core Infrastructure, and `role:dns` metadata
-* validated a known internal DNS record against its expected address
-* added a second active DNS check for public name resolution through the upstream resolver path
-* confirmed both internal and upstream DNS checks report healthy states
+* DNS service health, including internal-record and upstream-resolution checks
+* password-management application health through a user-facing HTTPS check
+* file-service health, mounted storage visibility, and authenticated SMB share access
+* Home Assistant availability through an active web check without installing an unsupported guest agent
+* monitoring-stack host health through a registered Linux agent
+* Prometheus application availability through an active HTTP check
+* Grafana application availability through an independent active HTTP check
 
-Together, the active checks prove that the DNS service can serve local records and resolve public records through its upstream path, rather than merely confirming that the host and DNS process are running.
+Additional Phase 3 improvements included:
 
-A page-table memory warning on the small LXC remains under observation. Overall memory availability is healthy, and broad memory alert suppression was deliberately avoided because no sufficiently specific page-table threshold rule was identified.
+* semantic host naming with network addresses stored separately
+* least-privilege credentials for authenticated active checks
+* container-specific page-table memory thresholds targeted only to Linux containers
+* validation that the revised page-table thresholds cleared non-actionable warnings while preserving the rest of the Linux memory check
+* cleanup of unused container images on the monitoring VM after Checkmk highlighted elevated root-filesystem utilization
+* narrow firewall access for the Checkmk agent listener on the monitoring VM
 
-#### Vaultwarden onboarding
-
-Status: **Complete**
-
-Vaultwarden was onboarded as the second production-class Phase 3 workload.
-
-Completed work:
-
-* created the host using the semantic production authentication-service naming standard
-* stored the container network address separately from the Checkmk host identifier
-* applied Production, Application, and authentication-role metadata for reusable rule targeting
-* installed the Checkmk Linux agent on the Vaultwarden container
-* registered the agent with the Checkmk site using the dedicated machine-account automation secret
-* verified the resulting pull-agent connection and site-issued certificate trust relationship
-* confirmed the Check_MK Agent service returned to OK after TLS registration replaced legacy-mode monitoring
-* completed Linux service discovery and baseline monitoring
-* added an active HTTPS check against the user-facing Vaultwarden endpoint
-* configured expected HTTP status, response-time thresholds, and certificate-expiration thresholds
-* scoped the HTTPS rule through Production, Application, and `role:authentication` metadata rather than an explicit host condition
-* confirmed the Vaultwarden HTTPS service reports healthy state
-
-This monitoring model distinguishes container health, encrypted Checkmk agent communication, and actual user-facing application availability through the reverse-proxy and TLS path.
-
-#### File services onboarding
-
-Status: **Complete**
-
-File services were onboarded as the third production-class Phase 3 workload.
-
-Completed work:
-
-* created the file-services host using the semantic production file-service naming standard
-* installed and registered the Checkmk Linux agent with TLS-protected pull-agent communication
-* completed Linux service discovery, including the root filesystem and the mounted file-services dataset
-* investigated a failed guest AppArmor unit and confirmed it was an unnecessary in-container profile-loader failure under Proxmox LXC confinement
-* disabled the unnecessary guest AppArmor loader and cleared the stale failed systemd state rather than weakening host-level container confinement
-* migrated the file-services container from DHCP to stable static IPv4 addressing
-* removed unused DHCPv6 configuration during the network migration
-* validated Samba services, routing, and mounted storage after restart
-* updated Checkmk to the new address while retaining the stable semantic host identifier
-* updated Home Assistant network-backup storage to the new file-server address
-* validated a successful Home Assistant backup after the storage migration
-* validated Windows SMB access to the migrated share
-* created a dedicated non-login Samba monitoring account with read-only share access
-* verified the monitoring credential can enumerate the share but cannot create content
-* configured an active SMB share check targeted through Production, Core Infrastructure, and `role:fileshare` metadata
-* confirmed the active SMB share check reports healthy state
-* added a local DNS record for the file-services endpoint so dependent systems can migrate away from direct IP references over time
-
-This monitoring model distinguishes guest health, Samba service health, mounted-storage state, and authenticated share accessibility. The local DNS record also reduces future dependency churn if the file-services address changes again.
+Phase 3 acceptance is satisfied because every planned core guest target is now represented through a healthy host or appliance object and at least one meaningful service-level validation where practical.
 
 ### Phase 4: Network infrastructure
+
+Status: **Planned**
 
 Evaluate SNMP monitoring for supported network devices.
 
@@ -223,9 +155,19 @@ SNMP credentials and community strings must not be committed to the public repos
 
 ### Phase 5: Proxmox host onboarding
 
+Status: **Planned**
+
 Add the Proxmox host only after the Checkmk agent and service-discovery model is understood and documented.
 
 The goal is to complement, not duplicate, the existing Node Exporter and Proxmox exporter metrics already collected by Prometheus.
+
+Hypervisor onboarding should include:
+
+* general Linux host health
+* storage and ZFS health where practical
+* virtualization-platform state where Checkmk provides a supported integration path
+* hardware health where available
+* deliberate separation from historical metrics already owned by Prometheus
 
 ## Relationship to Prometheus
 
@@ -278,14 +220,12 @@ A Checkmk-native site backup remains a planned second recovery layer for applica
 
 The current Proxmox backup destination resides on the redundant primary ZFS pool. This protects against guest-level failures and a single mirrored-disk failure, but it is not an independent copy against complete pool or host loss. An independent backup destination remains a future resilience improvement.
 
-Recovery documentation should include site restoration, version compatibility, credentials handling, and post-restore validation.
-
 ## Security and publication requirements
 
 Public documentation must not include:
 
 * internal IP addresses
-* live hostnames where they expose unnecessary topology details
+* live internal or public hostnames where they expose unnecessary topology details
 * SNMP credentials
 * API tokens
 * Checkmk automation secrets
@@ -300,7 +240,7 @@ The Checkmk evaluation will be considered successful when:
 
 * the dedicated monitoring VM is stable and documented
 * the VM backup has been successfully restored and validated
-* at least one Linux guest is monitored successfully
+* Linux guests are monitored successfully
 * service discovery produces useful, actionable checks
 * reusable classification and rule targeting are validated
 * critical service availability can be represented clearly
@@ -309,4 +249,4 @@ The Checkmk evaluation will be considered successful when:
 * Checkmk and Prometheus responsibilities are clearly separated
 * notification design avoids duplicate alerts
 
-If Checkmk adds significant operational complexity without enough additional value, the deployment can be retired while retaining Prometheus and Grafana as the primary observability stack.
+Phases 1 through 3 demonstrate that the core host, service, rule, and active-check model is operational. The remaining evaluation work is network infrastructure, Proxmox host onboarding, and notification design.
