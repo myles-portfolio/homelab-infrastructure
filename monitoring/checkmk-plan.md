@@ -53,12 +53,22 @@ The initial hierarchy separates production and development environments, then in
 The operating model is:
 
 * **Folders** define configuration inheritance boundaries and broad organizational structure.
-* **Host tags** will define controlled, mutually exclusive classifications that can be referenced consistently in rules.
-* **Labels** will carry flexible metadata that does not justify a rigid folder or tag dimension.
+* **Host tags** define controlled, mutually exclusive classifications that can be referenced consistently in rules.
+* **Labels** carry flexible metadata that does not justify a rigid folder or tag dimension.
 
 The initial folder structure includes production and development roots, with Linux, infrastructure, monitoring, appliance, home-automation, and network branches introduced only where currently useful. Additional branches will be added as monitoring coverage expands rather than creating speculative empty structure.
 
-Before broad onboarding, a standard host-tag and label taxonomy will be defined for attributes such as environment, criticality, platform, virtualization type, monitoring method, and service role.
+The initial custom classification taxonomy is now defined and validated:
+
+* Environment
+* Service Criticality
+* Platform
+* Virtualization
+* Service Class
+
+Flexible labels are used for metadata such as service role, backup policy, and hypervisor platform. Built-in Checkmk classifications remain responsible for agent, SNMP, address-family, and discovered operating-system or device metadata.
+
+See [`checkmk-configuration-standards.md`](checkmk-configuration-standards.md) for the sanitized taxonomy, label conventions, and rule-targeting standard.
 
 ## Deployment sequence
 
@@ -83,7 +93,7 @@ Phase 1 acceptance is satisfied because both platform operation and VM-level rec
 
 ### Phase 2: Low-risk onboarding
 
-Status: **In progress, initial Linux onboarding validated**
+Status: **In progress, onboarding and configuration model validated**
 
 A non-hypervisor development Linux guest was used as the first managed host so the agent and service-discovery workflow could be validated without introducing risk to core infrastructure.
 
@@ -113,9 +123,11 @@ The first Linux discovery produced a useful baseline covering:
 * TCP connection count
 * uptime
 
-The next Phase 2 task is to define host tags, labels, and inherited folder settings before onboarding additional hosts. This prevents default-only configuration from being replicated across the environment and creates a scalable rules model from the beginning.
+The first host was then classified using the custom taxonomy and flexible labels. A filesystem monitoring rule was targeted through folder scope and multiple custom host tags, then its effective service parameters were inspected to confirm that the intended warning and critical thresholds were actually applied.
 
-Additional Phase 2 validation will include expected host and service state transitions and clean agent removal or rollback where appropriate.
+This validates the planned scale model of folder inheritance plus reusable classifications plus rule-based configuration rather than per-host tuning.
+
+Remaining Phase 2 work includes validating expected host and service state transitions, confirming rollback or agent removal behavior where useful, and deciding whether any additional baseline rules are needed before core-service onboarding.
 
 ### Phase 3: Core guest coverage
 
@@ -223,6 +235,7 @@ The Checkmk evaluation will be considered successful when:
 * the VM backup has been successfully restored and validated
 * at least one Linux guest is monitored successfully
 * service discovery produces useful, actionable checks
+* reusable classification and rule targeting are validated
 * critical service availability can be represented clearly
 * network monitoring can be added without excessive custom work
 * backup and recovery paths are documented
