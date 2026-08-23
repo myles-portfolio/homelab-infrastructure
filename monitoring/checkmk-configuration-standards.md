@@ -18,6 +18,7 @@ The objective is to avoid per-host configuration where inherited settings, contr
 8. Use stable semantic host identifiers rather than IP addresses as Checkmk host names.
 9. Use dedicated least-privilege monitoring credentials for authenticated active checks rather than reusing application service accounts.
 10. Tune only the specific parameter responsible for a non-actionable condition rather than suppressing an entire service check.
+11. Suppress implementation-level hypervisor services when the corresponding guest condition is already monitored directly.
 
 ## Host naming standard
 
@@ -33,6 +34,7 @@ Examples:
 prod-dns-01
 prod-files-01
 prod-mon-01
+prod-hv-01
 dev-app-01
 ```
 
@@ -142,6 +144,7 @@ role:dns
 role:application-development
 role:fileshare
 role:monitoring
+role:hypervisor
 backup:daily
 hypervisor:proxmox
 ```
@@ -159,6 +162,8 @@ Validated patterns include:
 * authenticated SMB checks targeted through production, core-infrastructure, and file-share role metadata
 * application web checks targeted through service class and service-role metadata
 * Linux-container memory tuning targeted through platform and virtualization tags
+* hypervisor service suppression targeted through production, Linux, physical, core-infrastructure, and hypervisor-role metadata
+* SMART temperature thresholds targeted through the hypervisor classifications and exact drive sensor identifiers
 
 The intended operating model is:
 
@@ -228,6 +233,51 @@ Current page-table levels:
 * critical: 25 percent
 
 All other Linux memory parameters remain at their normal defaults. This preserves RAM, swap, committed-memory, and other memory alerts while reducing known container-specific noise.
+
+## Hypervisor monitoring standards
+
+Physical hypervisors require additional filtering so host monitoring does not become a duplicate inventory of guest implementation details.
+
+The current hypervisor scope is:
+
+```text
+Environment = Production
+Platform = Linux
+Virtualization = Physical
+Service Class = Core Infrastructure
+Host label = role:hypervisor
+```
+
+### Interface ownership
+
+Monitor only host-level interfaces that represent actual infrastructure, such as the physical NIC and intentional Proxmox bridge.
+
+Guest firewall bridges, firewall link interfaces, TAP interfaces, virtual Ethernet interfaces, and similar guest plumbing are disabled at the hypervisor layer. Guest networking state is owned by guest monitoring where applicable.
+
+### Filesystem ownership
+
+Monitor the host filesystem, ZFS pool, backup datasets, and other major host-managed datasets.
+
+Per-guest ZFS subvolume filesystems are disabled at the hypervisor layer because capacity and service state for those workloads are monitored through their guest objects.
+
+### SMART monitoring
+
+Use the current `smart_posix` agent plug-in for physical disk health.
+
+SMART services should include drive-health statistics and temperature where supported. Temperature thresholds should be tuned only when the generic defaults are inappropriate for the installed drive model. The effective check item should be verified before building Sensor ID conditions because the visible service name can differ from the internal item used by the ruleset.
+
+For the current high-capacity HDD class, the validated temperature levels are:
+
+* warning: 50 degrees Celsius
+* critical: 60 degrees Celsius
+
+These thresholds are scoped only to the matching HDD sensor identifiers rather than globally changing SMART temperature behavior.
+
+### Proxmox API integration
+
+The Proxmox special agent should use a dedicated read-only Proxmox identity with auditor-level permissions.
+
+If the integration itself crashes after network, TLS, authentication, and permission paths have been validated, disable only the special-agent rule rather than removing the healthy Linux-agent monitoring path. Treat the integration as a deferred enhancement until compatibility is restored.
 
 ## Container considerations
 
