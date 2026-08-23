@@ -6,7 +6,7 @@ This section documents the sanitized monitoring architecture used by the homelab
 
 The current metrics stack is hosted on a dedicated Ubuntu virtual machine and uses Docker Compose to run Prometheus, Grafana, and a NUT exporter. Prometheus also scrapes host-level metrics from the Proxmox VE host through Node Exporter and a Proxmox-specific exporter.
 
-Checkmk Community is deployed on a separate Debian virtual machine as a complementary infrastructure and service-monitoring layer. Its role is host state, service state, Linux agent monitoring, supported network-device monitoring, active checks, and infrastructure-focused notifications where an operational state model is more useful than time-series analysis.
+Checkmk Community is deployed on a separate Debian virtual machine as a complementary infrastructure and service-monitoring layer. Its role is host state, service state, Linux agent monitoring, supported network-device monitoring, active checks, storage and hardware state, and infrastructure-focused notifications where an operational state model is more useful than time-series analysis.
 
 See [`checkmk-plan.md`](checkmk-plan.md) for the deployment and evaluation plan and [`checkmk-configuration-standards.md`](checkmk-configuration-standards.md) for the current folder, classification, label, and rule-targeting standards.
 
@@ -84,6 +84,7 @@ The current platform state includes:
 * controlled service, agent, and host state-transition testing
 * core guest coverage completed across DNS, password management, file services, Home Assistant, and the monitoring stack
 * network infrastructure coverage completed for the current core router and switch
+* Proxmox hypervisor coverage completed through the Linux agent, ZFS checks, SMART monitoring, and scoped host-interface monitoring
 * active checks validating DNS behavior, authenticated SMB access, user-facing web availability, Prometheus availability, Grafana availability, and network management-interface availability
 
 ## Checkmk configuration model
@@ -98,7 +99,7 @@ The classification model uses:
 
 The validated custom host-tag dimensions are Environment, Service Criticality, Platform, Virtualization, and Service Class.
 
-Rules are targeted through reusable classifications wherever practical. Validated examples include development filesystem thresholds, DNS active checks, authenticated SMB checks, application HTTP checks, network management-interface checks, and Linux-container-specific memory thresholds.
+Rules are targeted through reusable classifications wherever practical. Validated examples include development filesystem thresholds, DNS active checks, authenticated SMB checks, application HTTP checks, network management-interface checks, Linux-container-specific memory thresholds, hypervisor interface suppression, guest backing-filesystem suppression, and drive-specific SMART temperature thresholds.
 
 ## Linux agent onboarding
 
@@ -134,6 +135,26 @@ Phase 4 extended the same principle to current network infrastructure:
 * SNMP remains the preferred deeper-monitoring method for future network hardware that supports it
 
 These checks answer whether the service or management path is actually usable, rather than only whether a device exists on the network.
+
+## Hypervisor monitoring
+
+Phase 5 onboarded the Proxmox VE host through the normal Checkmk Linux agent while retaining Prometheus for historical virtualization metrics.
+
+Validated Checkmk coverage includes:
+
+* CPU, memory, disk I/O, uptime, NTP, and systemd state
+* Proxmox process checks
+* ZFS pool health through `zpool status`
+* storage-pool and major dataset capacity
+* physical host networking and the intentional Proxmox bridge
+* SMART health for all physical drives through the current `smart_posix` agent plug-in
+* drive-specific temperature thresholds where the generic defaults were not appropriate for the installed HDD model
+
+To keep alert ownership clean, guest firewall and virtual interfaces are disabled at the hypervisor layer, and per-guest ZFS backing filesystems are also disabled. Those conditions are already owned by the guest monitoring model.
+
+The Proxmox VE special agent was evaluated with a dedicated read-only API identity. The current integration path reaches the API successfully but crashes while parsing node data because the expected timezone mapping is absent from the returned node data. The special-agent rule is disabled until a compatible Checkmk or Proxmox update resolves that behavior.
+
+This does not leave a major monitoring gap because the Linux agent, ZFS checks, SMART monitoring, Node Exporter, and PVE exporter continue to provide complementary host and virtualization visibility.
 
 ## Container-specific monitoring
 
@@ -185,7 +206,8 @@ Checkmk uses a similar layered validation model:
 6. confirm effective classification-based rules
 7. confirm meaningful application or management-interface checks
 8. validate distinct service, agent, and host failure behavior
-9. validate notification delivery after notification rules are introduced
+9. validate storage and physical-disk health on the hypervisor
+10. validate notification delivery after notification rules are introduced
 
 ## Maintenance model
 
@@ -231,11 +253,12 @@ Checkmk has its own maintenance workflow because it is installed natively on a d
 13. **Test failure modes deliberately.** A monitoring design is not validated until expected service, agent, and host failures produce distinct and recoverable states.
 14. **Use least privilege for authenticated checks.** Monitoring identities should receive only the access required to validate the service.
 15. **Match monitoring depth to device capability.** Prefer supported management protocols and avoid weakening or replacing stable device firmware solely to gain telemetry.
+16. **Keep ownership boundaries clean.** Hypervisor monitoring should not duplicate guest-level interface and filesystem alerts when the guests are already monitored directly.
 
 ## Current monitoring coverage
 
-Checkmk Phases 1 through 4 are complete. Platform deployment and restore behavior are validated, the low-risk onboarding model has been failure-tested, core guest coverage includes DNS, password management, file services, Home Assistant, Prometheus, and Grafana, and the current core router and switch are monitored for reachability and management-interface availability.
+Checkmk Phases 1 through 5 are complete. Platform deployment and restore behavior are validated, the low-risk onboarding model has been failure-tested, core guest coverage includes DNS, password management, file services, Home Assistant, Prometheus, and Grafana, the current core router and switch are monitored for reachability and management-interface availability, and the Proxmox hypervisor is monitored for host, ZFS, interface, process, and physical-disk health.
 
-The next rollout work is deliberate Proxmox hypervisor onboarding, followed by notification ownership and delivery once an outbound mail path is available.
+The next rollout work is notification ownership and delivery once an outbound mail path is available. The Proxmox special-agent integration remains a deferred enhancement pending compatibility resolution.
 
 See [`checkmk-plan.md`](checkmk-plan.md) for the Checkmk rollout sequence and [`alerting-roadmap.md`](alerting-roadmap.md) for notification architecture and ownership planning.
