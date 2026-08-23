@@ -21,12 +21,12 @@ Success criteria:
 
 Checkmk Community is deployed as an infrastructure and service-monitoring layer alongside the existing Prometheus and Grafana observability stack.
 
-Phase 1 platform deployment, Phase 2 low-risk Linux onboarding, and Phase 3 core guest coverage are complete. Phase 3 extended the validated monitoring model across foundational infrastructure, application services, an appliance-style VM, file services, and the existing monitoring stack. Application-level checks now validate meaningful service behavior in addition to host state.
+Phase 1 platform deployment, Phase 2 low-risk Linux onboarding, Phase 3 core guest coverage, and Phase 4 network infrastructure monitoring are complete. Phase 4 validated network-device reachability and management-interface availability for the current core router and switch, while confirming that deeper SNMP monitoring is unavailable on the present hardware.
 
 Goals:
 
 * provide host and service state monitoring for critical infrastructure
-* add straightforward Linux agent and SNMP-based monitoring
+* add straightforward Linux agent and supported network-device monitoring
 * monitor service availability independently of metrics dashboards
 * retain Prometheus for time-series metrics and Grafana visualization
 * avoid unnecessary duplication between Checkmk and Prometheus
@@ -34,10 +34,11 @@ Goals:
 
 Next rollout sequence:
 
-1. add network-device monitoring where supported
-2. onboard the Proxmox host after the monitoring model has been validated across core guests
-3. define notification ownership between Checkmk and the Prometheus alerting path
+1. onboard the Proxmox host deliberately as the next high-value infrastructure target
+2. define notification ownership between Checkmk and the Prometheus alerting path
+3. complete Checkmk notification delivery after an outbound mail path is available
 4. continue adding application-level checks where they provide meaningful operational evidence
+5. use SNMP for future network devices where the hardware supports it
 
 See [`monitoring/checkmk-plan.md`](monitoring/checkmk-plan.md) for the detailed deployment plan and [`monitoring/checkmk-configuration-standards.md`](monitoring/checkmk-configuration-standards.md) for the current taxonomy and rule-targeting model.
 
