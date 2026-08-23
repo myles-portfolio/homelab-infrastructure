@@ -8,7 +8,7 @@ Checkmk is not intended to replace the existing Prometheus and Grafana stack. Pr
 
 ## Why add Checkmk
 
-The existing Prometheus stack is effective for metrics collection, historical analysis, dashboards, and exporter-based telemetry. Checkmk addresses a different operational question: whether a host, service, interface, or infrastructure component is currently healthy and requires attention.
+The existing Prometheus stack is effective for metrics collection, historical analysis, dashboards, and exporter-based telemetry. Checkmk addresses a different operational question: whether a host, service, interface, storage layer, or infrastructure component is currently healthy and requires attention.
 
 The intended division of responsibilities is:
 
@@ -20,6 +20,7 @@ The intended division of responsibilities is:
 | Host and service state | Checkmk |
 | Linux agent monitoring | Checkmk |
 | Network-device state | Checkmk where supported |
+| Storage and hardware state | Checkmk where supported |
 | Metrics-based alert rules | Prometheus and Alertmanager, if retained |
 | Infrastructure state notifications | Checkmk, subject to final alerting design |
 
@@ -162,19 +163,26 @@ SNMP credentials, community strings, management addresses, and live hostnames mu
 
 ### Phase 5: Proxmox host onboarding
 
-Status: **Planned**
+Status: **Complete**
 
-Add the Proxmox host only after the Checkmk agent and service-discovery model is understood and documented.
+Phase 5 added the Proxmox VE hypervisor as a deliberately scoped production infrastructure host while preserving the separation between Checkmk state monitoring and Prometheus historical metrics.
 
-The goal is to complement, not duplicate, the existing Node Exporter and Proxmox exporter metrics already collected by Prometheus.
+Completed work:
 
-Hypervisor onboarding should include:
+* created a semantic hypervisor host object under the production Linux infrastructure hierarchy
+* installed and registered the normal Checkmk Linux agent directly on the Proxmox node
+* completed Linux service discovery and validated CPU, memory, disk I/O, systemd, time synchronization, filesystems, networking, and Proxmox process checks
+* confirmed ZFS pool health through the native `zpool status` service and storage-pool capacity checks
+* reduced interface noise by retaining only the physical host interface and intentional Proxmox bridge while disabling guest firewall and virtual interface services
+* disabled per-guest ZFS backing-filesystem services so guest storage capacity remains owned by guest monitoring rather than duplicated at the hypervisor layer
+* installed the current `smart_posix` Checkmk plug-in and validated SMART data for all physical drives
+* confirmed the physical drives report healthy SMART state
+* added targeted temperature thresholds for the installed high-capacity HDDs after validating their normal operating range, while leaving unrelated drive checks at their defaults
+* verified all retained hypervisor services report healthy state
 
-* general Linux host health
-* storage and ZFS health where practical
-* virtualization-platform state where Checkmk provides a supported integration path
-* hardware health where available
-* deliberate separation from historical metrics already owned by Prometheus
+The Proxmox VE special-agent integration was also evaluated using a dedicated read-only Proxmox API account with the built-in auditor role. Network connectivity, API reachability, and authentication setup were validated, but the current special agent crashes while parsing the node API response because the expected timezone mapping is absent. The special-agent rule is therefore disabled until a compatible Checkmk or Proxmox update resolves the condition.
+
+This blocker does not prevent Phase 5 acceptance because the normal Linux agent, ZFS checks, SMART monitoring, Proxmox process checks, and existing Prometheus exporters already provide strong complementary visibility into the hypervisor. The API integration remains a deferred enhancement rather than a requirement for baseline host monitoring.
 
 ## Relationship to Prometheus
 
@@ -201,7 +209,7 @@ Infrastructure
 
 Prometheus remains appropriate for questions such as utilization trends, historical metrics, rates, and capacity analysis.
 
-Checkmk is intended for questions such as whether a host, filesystem, service, interface, management endpoint, or dependency is currently in an operational state.
+Checkmk is intended for questions such as whether a host, filesystem, ZFS pool, physical disk, service, interface, management endpoint, or dependency is currently in an operational state.
 
 ## Alerting design
 
@@ -216,6 +224,8 @@ Before enabling broad notifications:
 5. test warning, critical, recovery, acknowledgement, and maintenance behavior
 
 The preferred result is one authoritative notification path per operational condition.
+
+Notification delivery remains pending an outbound mail path.
 
 ## Backup and recovery
 
@@ -252,8 +262,9 @@ The Checkmk evaluation will be considered successful when:
 * reusable classification and rule targeting are validated
 * critical service availability can be represented clearly
 * current network infrastructure is monitored to the level supported by the hardware
+* the Proxmox hypervisor has meaningful host, storage, and physical-disk health coverage
 * backup and recovery paths are documented
 * Checkmk and Prometheus responsibilities are clearly separated
 * notification design avoids duplicate alerts
 
-Phases 1 through 4 demonstrate that the platform, guest, service, active-check, and network-reachability models are operational. The remaining evaluation work is Proxmox host onboarding and notification design.
+Phases 1 through 5 demonstrate that the platform, guest, service, active-check, network, hypervisor, storage, and hardware-monitoring models are operational. The remaining work is notification delivery and future incremental monitoring expansion.
