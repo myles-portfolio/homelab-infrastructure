@@ -6,6 +6,8 @@ This document records the sanitized notification-delivery design used by Checkmk
 
 The implementation provides a complete outbound email path for Checkmk infrastructure and service-state notifications without exposing SMTP credentials or live destination addresses in the public repository.
 
+See [`checkmk-configuration-standards.md`](checkmk-configuration-standards.md) for contact-group and notification-rule standards and [`alerting-roadmap.md`](alerting-roadmap.md) for cross-platform alert ownership.
+
 ## Architecture
 
 Checkmk Community uses the local Linux mail transport for email delivery. The monitoring VM runs Postfix as a relay-only mail transfer agent, and Postfix submits outbound mail to a managed SMTP relay over authenticated TLS.
@@ -100,6 +102,8 @@ This provides both problem and recovery notification coverage while operational 
 
 The rule currently has no time-period restriction, notification-count limit, or periodic-notification throttling. These controls should be introduced only if observed alert behavior demonstrates a need.
 
+Notification-rule changes should be validated first through Checkmk's prediction workflow and then through an actual notification test.
+
 ## Contacts and routing
 
 Notification routing is based on Checkmk contacts and contact groups rather than hard-coded recipient addresses in notification rules.
@@ -122,9 +126,11 @@ Checkmk contact with email address
 HTML email notification rule
 ```
 
-A host contact-group assignment rule applies the administrative notification group to monitored hosts through configuration inheritance. This allows additional administrators or future routing changes without rewriting the notification rule itself.
+A host contact-group assignment rule applies the administrative notification group to monitored hosts through reusable configuration. This allows additional administrators or future routing changes without rewriting the notification rule itself.
 
 A fallback email destination is also configured in Checkmk so unmatched notifications still have a delivery target. Live addresses are not published here.
+
+The contact-group assignment should be verified on a representative host whenever routing rules change.
 
 ## Validation
 
@@ -163,6 +169,36 @@ SMTP relay
   v
 Recipient mailbox
 ```
+
+## Operational validation sequence
+
+After any material notification or mail-transport change, validate in this order:
+
+1. confirm DNS resolution for the relay endpoint
+2. confirm TCP 587 connectivity
+3. confirm STARTTLS negotiation
+4. confirm Postfix configuration and service state
+5. confirm direct Postfix relay delivery when transport changes are involved
+6. confirm Checkmk contact-group assignment
+7. confirm notification-rule prediction selects the intended contact and method
+8. send an actual Checkmk notification
+9. confirm relay activity and mailbox receipt
+
+This sequence isolates transport failures from Checkmk routing failures.
+
+## Maintenance considerations
+
+Postfix is now part of the Checkmk notification dependency chain.
+
+After Checkmk VM operating-system maintenance or Postfix package changes:
+
+* confirm the Postfix service is running
+* run a configuration check before restarting Postfix when mail settings have changed
+* verify the effective relay and TLS settings
+* inspect the mail queue if delivery is delayed
+* send a real Checkmk notification test when the mail stack or notification configuration has materially changed
+
+The SMTP credential should be rotated through the managed relay and password manager without committing the replacement secret to the repository.
 
 ## Current operating approach
 
