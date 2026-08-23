@@ -8,7 +8,7 @@ The current metrics stack is hosted on a dedicated Ubuntu virtual machine and us
 
 Checkmk Community is deployed on a separate Debian virtual machine as a complementary infrastructure and service-monitoring layer. Its role is host state, service state, Linux agent monitoring, supported network-device monitoring, active checks, storage and hardware state, and infrastructure-focused notifications where an operational state model is more useful than time-series analysis.
 
-See [`checkmk-plan.md`](checkmk-plan.md) for the deployment and evaluation plan and [`checkmk-configuration-standards.md`](checkmk-configuration-standards.md) for the current folder, classification, label, and rule-targeting standards.
+See [`checkmk-plan.md`](checkmk-plan.md) for the deployment and evaluation plan, [`checkmk-configuration-standards.md`](checkmk-configuration-standards.md) for the current folder, classification, label, rule-targeting, contact, and notification-routing standards, [`checkmk-notifications.md`](checkmk-notifications.md) for the outbound email-delivery implementation, and [`alerting-roadmap.md`](alerting-roadmap.md) for cross-platform alert ownership.
 
 ## Monitoring architecture
 
@@ -19,6 +19,15 @@ Infrastructure
    |          |
    |          v
    |       Checkmk
+   |          |
+   |          v
+   |       Postfix
+   |          |
+   |          v
+   |    managed SMTP relay
+   |          |
+   |          v
+   |   notification mailbox
    |
    +--> exporters
               |
@@ -29,7 +38,9 @@ Infrastructure
             Grafana
 ```
 
-This separation allows each platform to focus on the monitoring model it handles best while avoiding unnecessary coupling.
+A future Prometheus alerting path may add Alertmanager only for metric-owned conditions that justify a separate routing component.
+
+This separation allows each platform to focus on the monitoring model it handles best while avoiding unnecessary coupling and duplicate notifications.
 
 ## Components
 
@@ -86,20 +97,29 @@ The current platform state includes:
 * network infrastructure coverage completed for the current core router and switch
 * Proxmox hypervisor coverage completed through the Linux agent, ZFS checks, SMART monitoring, and scoped host-interface monitoring
 * active checks validating DNS behavior, authenticated SMB access, user-facing web availability, Prometheus availability, Grafana availability, and network management-interface availability
+* contact-group-based notification ownership
+* a baseline HTML email notification rule covering host DOWN and UP plus service WARN, CRIT, UNKNOWN, and OK transitions
+* a local Postfix relay using authenticated STARTTLS to a managed SMTP provider
+* a fallback notification destination
+* successful end-to-end Checkmk notification delivery validation
 
 ## Checkmk configuration model
 
 Checkmk folders are treated as configuration-inheritance boundaries rather than only visual organization.
 
-The classification model uses:
+The configuration model uses:
 
 * folders for inherited configuration and broad organizational boundaries
 * host tags for controlled cross-cutting classifications used by rules
 * labels for flexible metadata that may evolve over time
+* contact groups for operational notification ownership
+* rules for both monitoring behavior and reusable contact-group assignment
 
 The validated custom host-tag dimensions are Environment, Service Criticality, Platform, Virtualization, and Service Class.
 
-Rules are targeted through reusable classifications wherever practical. Validated examples include development filesystem thresholds, DNS active checks, authenticated SMB checks, application HTTP checks, network management-interface checks, Linux-container-specific memory thresholds, hypervisor interface suppression, guest backing-filesystem suppression, and drive-specific SMART temperature thresholds.
+Rules are targeted through reusable classifications wherever practical. Validated examples include development filesystem thresholds, DNS active checks, authenticated SMB checks, application HTTP checks, network management-interface checks, Linux-container-specific memory thresholds, hypervisor interface suppression, guest backing-filesystem suppression, drive-specific SMART temperature thresholds, and broad contact-group assignment for notification routing.
+
+Notification rules do not hard-code individual recipient addresses. The contact-group assignment determines who owns the object, while the Checkmk contact stores the delivery address.
 
 ## Linux agent onboarding
 
@@ -116,6 +136,7 @@ The validated workflow is:
 9. confirm the host and accepted services report healthy states
 10. verify effective parameters when new rules or classifications are introduced
 11. add meaningful application-level checks where practical
+12. verify the expected contact-group assignment before relying on notifications
 
 ## Active service validation
 
@@ -156,6 +177,33 @@ The Proxmox VE special agent was evaluated with a dedicated read-only API identi
 
 This does not leave a major monitoring gap because the Linux agent, ZFS checks, SMART monitoring, Node Exporter, and PVE exporter continue to provide complementary host and virtualization visibility.
 
+## Notification delivery
+
+Checkmk Community uses the local Linux mail transport for outbound notifications.
+
+The delivery path is:
+
+```text
+Checkmk notification engine
+          |
+          v
+      local Postfix
+          |
+          v
+     managed SMTP relay
+          |
+          v
+   recipient mail system
+```
+
+Postfix submits mail through authenticated STARTTLS on TCP 587. SMTP credentials and live destination addresses remain outside the public repository.
+
+The baseline notification model uses contact groups for ownership and the built-in HTML email method for delivery. The initial rule covers host DOWN and UP transitions plus service WARN, CRIT, UNKNOWN, and OK transitions. A fallback email destination is configured for unmatched notifications.
+
+The full delivery path has been validated through an actual Checkmk notification test, including rule matching, contact selection, notification plug-in execution, Postfix handoff, managed-relay activity, and final mailbox receipt.
+
+See [`checkmk-notifications.md`](checkmk-notifications.md) for the sanitized transport and validation details.
+
 ## Container-specific monitoring
 
 Small Linux containers produced page-table memory warnings even when overall memory availability was healthy. Effective service parameters identified the default page-table thresholds as the source.
@@ -173,6 +221,8 @@ Controlled failure testing demonstrated distinct handling of:
 3. complete host outage
 
 Each scenario produced the expected Checkmk state and recovered automatically when the underlying condition was corrected.
+
+Notification transport itself has been validated. Full notification lifecycle testing still includes deliberate recovery, acknowledgement, and scheduled-downtime behavior validation.
 
 ## Monitoring VMs
 
@@ -207,7 +257,10 @@ Checkmk uses a similar layered validation model:
 7. confirm meaningful application or management-interface checks
 8. validate distinct service, agent, and host failure behavior
 9. validate storage and physical-disk health on the hypervisor
-10. validate notification delivery after notification rules are introduced
+10. verify effective contact-group assignment
+11. verify notification-rule prediction and selected recipient
+12. trigger an actual notification and validate Postfix, SMTP relay, and mailbox delivery
+13. validate recovery, acknowledgement, and scheduled-downtime behavior as the alerting model matures
 
 ## Maintenance model
 
@@ -236,6 +289,8 @@ Target and UI validation
 
 Checkmk has its own maintenance workflow because it is installed natively on a dedicated Debian VM rather than deployed through the existing Docker Compose stack.
 
+Because Postfix is now part of the Checkmk notification path, Checkmk VM maintenance should also confirm that the Postfix service remains healthy and that the configured relay path is still functional after relevant operating-system or mail-package changes.
+
 ## Observability principles
 
 1. **Monitor dependencies, not just hosts.** A running VM does not prove the hosted service is functional.
@@ -248,17 +303,19 @@ Checkmk has its own maintenance workflow because it is installed natively on a d
 8. **Avoid duplicate notifications.** A condition monitored by multiple platforms should normally have one authoritative notification path.
 9. **Validate notification delivery.** A firing rule or critical service state is not enough if the notification path is broken.
 10. **Validate recovery, not only backup creation.** A successful backup job is not sufficient evidence until restore behavior has been tested.
-11. **Design for inheritance before scale.** Folder, tag, label, and rule structure should be established before onboarding large numbers of hosts.
-12. **Verify effective configuration.** Creating a rule is not sufficient until the intended service shows the resulting effective parameters.
+11. **Design for inheritance before scale.** Folder, tag, label, contact-group, and rule structure should be established before onboarding large numbers of hosts.
+12. **Verify effective configuration.** Creating a rule is not sufficient until the intended object shows the resulting effective parameters or contact assignment.
 13. **Test failure modes deliberately.** A monitoring design is not validated until expected service, agent, and host failures produce distinct and recoverable states.
 14. **Use least privilege for authenticated checks.** Monitoring identities should receive only the access required to validate the service.
 15. **Match monitoring depth to device capability.** Prefer supported management protocols and avoid weakening or replacing stable device firmware solely to gain telemetry.
 16. **Keep ownership boundaries clean.** Hypervisor monitoring should not duplicate guest-level interface and filesystem alerts when the guests are already monitored directly.
+17. **Separate notification ownership from transport.** Contact groups determine who should be notified; Postfix and the SMTP relay determine how the message is delivered.
+18. **Tune alerts from evidence.** Keep the initial rule broad enough to observe real behavior, then reduce transient or non-actionable noise based on measured alert quality.
 
 ## Current monitoring coverage
 
-Checkmk Phases 1 through 5 are complete. Platform deployment and restore behavior are validated, the low-risk onboarding model has been failure-tested, core guest coverage includes DNS, password management, file services, Home Assistant, Prometheus, and Grafana, the current core router and switch are monitored for reachability and management-interface availability, and the Proxmox hypervisor is monitored for host, ZFS, interface, process, and physical-disk health.
+Checkmk Phases 1 through 6 are complete. Platform deployment and restore behavior are validated, the low-risk onboarding model has been failure-tested, core guest coverage includes DNS, password management, file services, Home Assistant, Prometheus, and Grafana, the current core router and switch are monitored for reachability and management-interface availability, the Proxmox hypervisor is monitored for host, ZFS, interface, process, and physical-disk health, and Checkmk notification delivery is operational through Postfix and a managed SMTP relay.
 
-The next rollout work is notification ownership and delivery once an outbound mail path is available. The Proxmox special-agent integration remains a deferred enhancement pending compatibility resolution.
+The next work is evidence-based alert tuning, complete notification lifecycle validation, incremental application and infrastructure coverage, and Prometheus-owned alerting only where metric-oriented conditions justify it. The Proxmox special-agent integration remains a deferred enhancement pending compatibility resolution.
 
-See [`checkmk-plan.md`](checkmk-plan.md) for the Checkmk rollout sequence and [`alerting-roadmap.md`](alerting-roadmap.md) for notification architecture and ownership planning.
+See [`checkmk-plan.md`](checkmk-plan.md) for the Checkmk rollout sequence, [`checkmk-configuration-standards.md`](checkmk-configuration-standards.md) for configuration standards, [`checkmk-notifications.md`](checkmk-notifications.md) for notification delivery, and [`alerting-roadmap.md`](alerting-roadmap.md) for notification architecture and ownership planning.
