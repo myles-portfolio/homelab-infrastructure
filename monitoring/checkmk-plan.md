@@ -4,7 +4,7 @@
 
 This document defines the introduction of Checkmk as an infrastructure and service-monitoring layer for the homelab.
 
-Checkmk is not intended to replace the existing Prometheus and Grafana stack. Prometheus remains the primary time-series metrics platform, while Grafana remains the primary visualization layer. Checkmk is being introduced for host state, service state, agent-based monitoring, SNMP monitoring, and operational alerting where that model provides clearer infrastructure visibility.
+Checkmk is not intended to replace the existing Prometheus and Grafana stack. Prometheus remains the primary time-series metrics platform, while Grafana remains the primary visualization layer. Checkmk is being introduced for host state, service state, agent-based monitoring, supported network-device monitoring, active checks, and operational alerting where that model provides clearer infrastructure visibility.
 
 ## Why add Checkmk
 
@@ -19,7 +19,7 @@ The intended division of responsibilities is:
 | Exporter-based telemetry | Prometheus |
 | Host and service state | Checkmk |
 | Linux agent monitoring | Checkmk |
-| SNMP infrastructure monitoring | Checkmk |
+| Network-device state | Checkmk where supported |
 | Metrics-based alert rules | Prometheus and Alertmanager, if retained |
 | Infrastructure state notifications | Checkmk, subject to final alerting design |
 
@@ -138,20 +138,27 @@ Additional Phase 3 improvements included:
 
 Phase 3 acceptance is satisfied because every planned core guest target is now represented through a healthy host or appliance object and at least one meaningful service-level validation where practical.
 
-### Phase 4: Network infrastructure
+### Phase 4: Network infrastructure monitoring
 
-Status: **Planned**
+Status: **Complete**
 
-Evaluate SNMP monitoring for supported network devices.
+Phase 4 evaluated the actual management capabilities of the current core network devices and adjusted the monitoring design to match supported interfaces rather than forcing SNMP where it is unavailable.
 
-Initial goals:
+Completed work:
 
-* device availability
-* interface state and errors
-* resource health
-* hardware or environmental status where exposed
+* onboarded the core router as a production network device
+* onboarded the core switch as a separate production network device
+* classified both devices through the existing Environment, Service Criticality, Platform, Virtualization, and Service Class model
+* confirmed both devices report healthy ICMP reachability
+* verified that the current router firmware does not expose an SNMP service through its supported management interface
+* verified that the current switch model does not support SNMP
+* retained SNMP as the preferred deeper-monitoring method for future network devices that support it
+* added independent HTTP management-interface availability checks for the router and switch
+* confirmed both management-interface checks report healthy state
 
-SNMP credentials and community strings must not be committed to the public repository.
+Phase 4 acceptance is satisfied because both current core network devices are monitored to the maximum practical level supported by their management capabilities: host reachability plus management-interface availability.
+
+SNMP credentials, community strings, management addresses, and live hostnames must not be committed to the public repository.
 
 ### Phase 5: Proxmox host onboarding
 
@@ -178,7 +185,7 @@ The working model is:
 ```text
 Infrastructure
    |
-   +--> Checkmk agents / SNMP / active checks
+   +--> Checkmk agents / supported network monitoring / active checks
    |          |
    |          v
    |       Checkmk
@@ -194,7 +201,7 @@ Infrastructure
 
 Prometheus remains appropriate for questions such as utilization trends, historical metrics, rates, and capacity analysis.
 
-Checkmk is intended for questions such as whether a host, filesystem, service, interface, or dependency is currently in an operational state.
+Checkmk is intended for questions such as whether a host, filesystem, service, interface, management endpoint, or dependency is currently in an operational state.
 
 ## Alerting design
 
@@ -244,9 +251,9 @@ The Checkmk evaluation will be considered successful when:
 * service discovery produces useful, actionable checks
 * reusable classification and rule targeting are validated
 * critical service availability can be represented clearly
-* network monitoring can be added without excessive custom work
+* current network infrastructure is monitored to the level supported by the hardware
 * backup and recovery paths are documented
 * Checkmk and Prometheus responsibilities are clearly separated
 * notification design avoids duplicate alerts
 
-Phases 1 through 3 demonstrate that the core host, service, rule, and active-check model is operational. The remaining evaluation work is network infrastructure, Proxmox host onboarding, and notification design.
+Phases 1 through 4 demonstrate that the platform, guest, service, active-check, and network-reachability models are operational. The remaining evaluation work is Proxmox host onboarding and notification design.
