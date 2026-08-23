@@ -21,7 +21,7 @@ Success criteria:
 
 Checkmk Community is deployed as an infrastructure and service-monitoring layer alongside the existing Prometheus and Grafana observability stack.
 
-Phase 1 platform deployment, Phase 2 low-risk Linux onboarding, Phase 3 core guest coverage, and Phase 4 network infrastructure monitoring are complete. Phase 4 validated network-device reachability and management-interface availability for the current core router and switch, while confirming that deeper SNMP monitoring is unavailable on the present hardware.
+Phases 1 through 5 are complete. The rollout now covers platform deployment, low-risk validation, core guest services, current network infrastructure, and the Proxmox hypervisor. Hypervisor coverage includes Linux host state, Proxmox processes, ZFS pool health, physical-disk SMART health, and intentionally scoped host interfaces. The Proxmox API special agent remains disabled because of a compatibility crash in the current integration path, while the normal Linux-agent and existing Prometheus exporter coverage remain healthy.
 
 Goals:
 
@@ -34,9 +34,9 @@ Goals:
 
 Next rollout sequence:
 
-1. onboard the Proxmox host deliberately as the next high-value infrastructure target
-2. define notification ownership between Checkmk and the Prometheus alerting path
-3. complete Checkmk notification delivery after an outbound mail path is available
+1. define notification ownership between Checkmk and the Prometheus alerting path
+2. complete Checkmk notification delivery after an outbound mail path is available
+3. revisit the Proxmox special-agent integration after a compatible Checkmk or Proxmox update
 4. continue adding application-level checks where they provide meaningful operational evidence
 5. use SNMP for future network devices where the hardware supports it
 
