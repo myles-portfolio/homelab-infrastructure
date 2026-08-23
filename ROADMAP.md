@@ -23,6 +23,8 @@ Checkmk Community is deployed as an infrastructure and service-monitoring layer 
 
 Phases 1 through 5 are complete. The rollout now covers platform deployment, low-risk validation, core guest services, current network infrastructure, and the Proxmox hypervisor. Hypervisor coverage includes Linux host state, Proxmox processes, ZFS pool health, physical-disk SMART health, and intentionally scoped host interfaces. The Proxmox API special agent remains disabled because of a compatibility crash in the current integration path, while the normal Linux-agent and existing Prometheus exporter coverage remain healthy.
 
+Outbound Checkmk notification delivery is also operational. Checkmk Community hands HTML notifications to a local Postfix relay, which submits mail through a managed SMTP service using authenticated STARTTLS. Contact-group routing, a fallback destination, and end-to-end test delivery are validated. Notification volume will now be observed before introducing additional throttling, delays, or escalation behavior.
+
 Goals:
 
 * provide host and service state monitoring for critical infrastructure
@@ -30,17 +32,18 @@ Goals:
 * monitor service availability independently of metrics dashboards
 * retain Prometheus for time-series metrics and Grafana visualization
 * avoid unnecessary duplication between Checkmk and Prometheus
-* define alert ownership and notification behavior before broad rollout
+* maintain one authoritative notification path per operational condition
 
 Next rollout sequence:
 
-1. define notification ownership between Checkmk and the Prometheus alerting path
-2. complete Checkmk notification delivery after an outbound mail path is available
+1. observe real notification volume and tune noisy or transient conditions only where operational evidence justifies it
+2. validate recovery, acknowledgement, and scheduled-downtime notification behavior through controlled tests
 3. revisit the Proxmox special-agent integration after a compatible Checkmk or Proxmox update
 4. continue adding application-level checks where they provide meaningful operational evidence
 5. use SNMP for future network devices where the hardware supports it
+6. evaluate Alertmanager only for Prometheus-owned metric conditions that justify a separate routing path
 
-See [`monitoring/checkmk-plan.md`](monitoring/checkmk-plan.md) for the detailed deployment plan and [`monitoring/checkmk-configuration-standards.md`](monitoring/checkmk-configuration-standards.md) for the current taxonomy and rule-targeting model.
+See [`monitoring/checkmk-plan.md`](monitoring/checkmk-plan.md) for the detailed deployment plan, [`monitoring/checkmk-configuration-standards.md`](monitoring/checkmk-configuration-standards.md) for the current taxonomy and rule-targeting model, and [`monitoring/checkmk-notifications.md`](monitoring/checkmk-notifications.md) for the sanitized notification-delivery design.
 
 ### Backup verification and restore testing
 
@@ -134,5 +137,6 @@ The following practices are ongoing rather than one-time roadmap items:
 * remove obsolete snapshots after successful maintenance
 * periodically review storage utilization and thin-provisioning risk
 * periodically test backup restoration for critical workloads
+* review notification quality and remove noisy or redundant alert paths
 * sanitize configuration examples before publication
 * update public documentation when the architecture materially changes
