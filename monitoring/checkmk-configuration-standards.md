@@ -4,7 +4,9 @@
 
 This document defines the sanitized configuration model used to scale Checkmk monitoring consistently across the homelab.
 
-The objective is to avoid per-host configuration where inherited settings, controlled classifications, labels, and rules can express the same intent more reliably.
+The objective is to avoid per-host configuration where inherited settings, controlled classifications, labels, contacts, and rules can express the same intent more reliably.
+
+See [`checkmk-notifications.md`](checkmk-notifications.md) for the outbound mail-delivery implementation and [`alerting-roadmap.md`](alerting-roadmap.md) for cross-platform alert ownership.
 
 ## Design principles
 
@@ -19,6 +21,8 @@ The objective is to avoid per-host configuration where inherited settings, contr
 9. Use dedicated least-privilege monitoring credentials for authenticated active checks rather than reusing application service accounts.
 10. Tune only the specific parameter responsible for a non-actionable condition rather than suppressing an entire service check.
 11. Suppress implementation-level hypervisor services when the corresponding guest condition is already monitored directly.
+12. Use contact groups and assignment rules for notification ownership rather than hard-coded recipient addresses in individual notification rules.
+13. Validate both rule evaluation and actual notification delivery after changing contact or notification routing.
 
 ## Host naming standard
 
@@ -164,6 +168,7 @@ Validated patterns include:
 * Linux-container memory tuning targeted through platform and virtualization tags
 * hypervisor service suppression targeted through production, Linux, physical, core-infrastructure, and hypervisor-role metadata
 * SMART temperature thresholds targeted through the hypervisor classifications and exact drive sensor identifiers
+* contact-group assignment targeted broadly through reusable host scope rather than per-host recipient configuration
 
 The intended operating model is:
 
@@ -179,6 +184,70 @@ Rule conditions
       v
 Consistent effective monitoring behavior
 ```
+
+## Notification routing standard
+
+Notification ownership should be expressed through Checkmk contacts and contact groups rather than hard-coded email addresses in reusable notification rules.
+
+The operating model is:
+
+```text
+Monitored object
+      |
+      v
+Contact-group assignment rule
+      |
+      v
+Contact group
+      |
+      v
+Checkmk contact
+      |
+      v
+Notification rule
+```
+
+Standards:
+
+* use contact groups to represent operational ownership
+* assign contact groups through rules or inherited configuration rather than per-host edits where practical
+* store the actual destination email address on the Checkmk contact
+* keep notification rules focused on event conditions and delivery methods
+* configure a fallback email destination for unmatched notifications
+* avoid embedding personal email addresses directly in reusable notification rules
+* validate effective contact-group assignment on at least one representative host after introducing or changing a routing rule
+* use Checkmk notification prediction to verify rule matching and contact selection
+* use an actual notification test to verify plug-in execution and mail delivery after routing changes
+* keep SMTP credentials and live recipient addresses outside the public repository
+
+The initial administrative contact group is applied broadly to monitored hosts. More granular groups should be introduced only when operational ownership actually differs.
+
+## Baseline notification rule standard
+
+The initial global HTML email rule provides both problem and recovery coverage.
+
+Host events:
+
+* any state to `DOWN`
+* any state to `UP`
+
+Service events:
+
+* any state to `WARN`
+* any state to `CRIT`
+* any state to `UNKNOWN`
+* any state to `OK`
+
+The baseline rule currently has no time-period restriction, notification-count limit, or periodic-notification throttling.
+
+Warning notifications remain enabled during the initial observation period. Future suppression, delays, routing differences, or reminder behavior should be based on observed alert quality rather than configured preemptively.
+
+Changes to the baseline notification rule should be validated in two stages:
+
+1. confirm the rule predicts the intended contact and notification method
+2. trigger an actual test notification and verify successful delivery
+
+See [`checkmk-notifications.md`](checkmk-notifications.md) for the mail-transport design and validation path.
 
 ## Linux host onboarding standard
 
@@ -198,6 +267,7 @@ The validated Linux onboarding sequence is:
 12. confirm host and accepted service state
 13. review effective parameters when new rules or classifications are introduced
 14. add application-level active checks for important services where practical
+15. verify contact-group assignment before relying on notifications for the host
 
 ## Authenticated active-check credentials
 
@@ -298,7 +368,9 @@ Public examples must not expose:
 * site secrets or registration credentials
 * authentication material
 * notification destinations
+* SMTP credentials
+* password-manager contents
 * SNMP credentials
 * API tokens
 
-The public documentation should preserve architecture, taxonomy, workflow, and operating decisions while omitting live topology and secrets.
+The public documentation should preserve architecture, taxonomy, workflow, notification ownership, and operating decisions while omitting live topology and secrets.
