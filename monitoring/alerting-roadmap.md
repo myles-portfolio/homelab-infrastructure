@@ -2,17 +2,17 @@
 
 ## Purpose
 
-This roadmap defines the planned notification architecture across Checkmk, Prometheus, and Grafana.
+This roadmap defines the notification architecture across Checkmk, Prometheus, and Grafana.
 
 Checkmk is now the primary platform for infrastructure and service-state monitoring. Prometheus remains the primary time-series metrics platform, while Grafana remains the primary visualization layer. Alertmanager is no longer a prerequisite for infrastructure alerting and should be introduced only where Prometheus-owned metric conditions require routing and notification handling.
 
 The goal is to establish one authoritative notification path per operational condition, keep alerts actionable, and avoid duplicate notifications across monitoring platforms.
 
-See [`checkmk-plan.md`](checkmk-plan.md) for the Checkmk deployment plan and [`README.md`](README.md) for the overall monitoring architecture.
+See [`checkmk-plan.md`](checkmk-plan.md) for the Checkmk deployment plan, [`checkmk-notifications.md`](checkmk-notifications.md) for the sanitized Checkmk email-delivery implementation, and [`README.md`](README.md) for the overall monitoring architecture.
 
 ## Current monitoring state
 
-Checkmk platform deployment, low-risk onboarding, and core guest coverage are complete.
+Checkmk platform deployment, low-risk onboarding, core guest coverage, network monitoring, hypervisor monitoring, and baseline email notification delivery are complete.
 
 Validated Checkmk coverage now includes:
 
@@ -27,10 +27,15 @@ Validated Checkmk coverage now includes:
 * Grafana availability
 * reusable rule targeting through folders, classifications, and labels
 * container-specific memory threshold tuning where the default page-table percentage produced non-actionable warnings
+* Proxmox host, ZFS, process, interface, and physical-disk health monitoring
+* contact-group-based notification routing
+* HTML email notifications through a local Postfix relay and managed SMTP provider
+* a fallback email destination for unmatched notifications
+* successful end-to-end Checkmk notification delivery testing
 
 Prometheus continues to collect time-series metrics for host, virtualization, and UPS telemetry. Grafana remains the primary visualization layer.
 
-The next alerting work should focus on notification ownership and delivery rather than adding another monitoring platform by default.
+The next alerting work should focus on alert quality, lifecycle validation, and clearly separated ownership rather than adding another monitoring platform or notification path by default.
 
 ## Target architecture
 
@@ -44,6 +49,15 @@ Infrastructure and services
           |                 |
           |                 v
           |        Checkmk notifications
+          |                 |
+          |                 v
+          |              Postfix
+          |                 |
+          |                 v
+          |          managed SMTP relay
+          |                 |
+          |                 v
+          |        notification mailbox
           |
           +--> exporters
                     |
@@ -60,6 +74,8 @@ Infrastructure and services
                               v
                     Notification channels
 ```
+
+The Prometheus-to-Alertmanager branch remains conditional. It should be implemented only where Prometheus-owned metric conditions require alert routing.
 
 This architecture does not imply that every condition should exist in both Checkmk and Prometheus. Each alert-worthy condition should have one authoritative owner.
 
@@ -80,6 +96,7 @@ Examples include:
 * web application availability
 * certificate expiration detected by active checks
 * SNMP device and interface state when network monitoring is introduced
+* hypervisor host state, ZFS health, and physical-disk health where Checkmk already has authoritative state coverage
 
 ### Prometheus-owned conditions
 
@@ -102,32 +119,53 @@ If both systems observe the same dependency, one may retain the telemetry while 
 
 ## Phase 1: Checkmk notification foundation
 
-### Define notification recipients and routing
+Status: **Complete**
 
-Establish an initial Checkmk notification path for infrastructure and service-state conditions.
+### Notification recipients and routing
 
-Success criteria:
+The initial Checkmk notification path is operational.
 
-* at least one notification destination is configured
-* credentials and destination details remain outside the public repository
-* warning, critical, and recovery notifications are delivered successfully
-* routing can be scoped by host or service classification where useful
+Completed work:
 
-### Validate notification lifecycle
+* created an administrative contact group for monitored infrastructure
+* assigned the contact group to monitored hosts through a reusable assignment rule
+* configured a contact email destination outside the public repository
+* configured a fallback email destination
+* retained the built-in HTML email notification method
+* configured the baseline notification rule for host DOWN and UP events and service WARN, CRIT, UNKNOWN, and OK events
 
-Test the complete Checkmk notification path using controlled conditions already proven during monitoring validation.
+### Outbound delivery
+
+Checkmk Community uses the local Linux mail transport rather than commercial direct-SMTP delivery.
+
+Completed work:
+
+* installed Postfix on the Checkmk VM
+* configured a managed SMTP relay as the Postfix smarthost
+* enabled SMTP authentication and required TLS for outbound submission
+* verified a dedicated sender subdomain through public DNS
+* stored SMTP credentials outside the public repository
+* validated direct Postfix relay delivery
+* validated a real Checkmk HTML notification from rule match through final mailbox delivery
+
+See [`checkmk-notifications.md`](checkmk-notifications.md) for the sanitized implementation.
+
+### Remaining lifecycle validation
+
+Baseline delivery is complete, but operational behavior still needs deliberate validation over time.
 
 Candidate tests include:
 
-* temporary service failure
-* temporary agent communication failure
-* controlled host outage
-* active HTTP or DNS check failure
+* temporary service failure followed by recovery
+* temporary agent communication failure followed by recovery
+* controlled host outage followed by recovery
+* acknowledgement behavior
+* scheduled-downtime suppression
 
 Success criteria:
 
 * problem state is detected
-* notification is delivered
+* problem notification is delivered
 * acknowledgement behavior is understood
 * scheduled downtime suppresses expected notifications
 * recovery notification is delivered
@@ -141,14 +179,22 @@ Initial candidates include:
 * core host DOWN states
 * Checkmk agent communication failure on critical Linux systems
 * DNS resolution failure
-* Vaultwarden availability failure
+* password-management availability failure
 * file-share availability failure
 * Home Assistant availability failure
 * Prometheus or Grafana endpoint failure
 * filesystem capacity thresholds
 * certificate expiration thresholds
+* ZFS or physical-disk health faults
 
-Warning and critical thresholds should reflect operational response needs rather than dashboard aesthetics.
+The baseline rule currently includes WARN notifications so real-world volume can be observed. Warning and critical thresholds should reflect operational response needs rather than dashboard aesthetics.
+
+Potential tuning after observation includes:
+
+* short delays for transient WARN or CRIT states
+* suppression of known non-actionable warnings
+* periodic reminders for persistent critical conditions
+* routing differences based on host or service classification
 
 ## Phase 3: Prometheus alerting evaluation
 
@@ -193,18 +239,21 @@ If deployed, implementation goals include:
 
 ## Phase 4: Network and hypervisor alert ownership
 
-As Checkmk coverage expands to network devices and the Proxmox hypervisor, define alert ownership before enabling notifications.
+Current network and hypervisor coverage is operational, but notification ownership should remain deliberate as deeper checks are added.
 
 Expected Checkmk candidates include:
 
 * network device availability
-* interface state
+* interface state on future SNMP-capable devices
 * hardware or environmental faults exposed through SNMP
 * hypervisor host availability
 * operating-system service state
-* filesystem and ZFS health where available
+* ZFS health
+* physical-disk SMART health
 
 Prometheus may continue to own historical performance and capacity conditions for the same infrastructure.
+
+The current Proxmox API special-agent integration remains disabled because of a compatibility failure. Existing Linux-agent and Prometheus exporter coverage remains authoritative for the supported checks until that integration is revisited.
 
 ## Phase 5: Backup and recovery monitoring
 
@@ -248,19 +297,42 @@ Additional severity levels should be introduced only when a real operational req
 
 ## Validation requirements
 
-A Checkmk-owned notification is not considered operational until this workflow has been tested:
+A Checkmk-owned notification is considered delivery-operational when this path has been tested:
 
 ```text
-Condition triggered
-      |
-      v
-Checkmk detects state
+Test event
       |
       v
 Notification rule matches
       |
       v
-Notification is delivered
+Contact is selected
+      |
+      v
+Notification plug-in executes
+      |
+      v
+Postfix accepts message
+      |
+      v
+Managed relay accepts message
+      |
+      v
+Recipient mailbox receives message
+```
+
+That baseline path is now validated.
+
+Full lifecycle validation additionally requires:
+
+```text
+Real or controlled problem occurs
+      |
+      v
+Checkmk detects state
+      |
+      v
+Problem notification is delivered
       |
       v
 Condition resolves
@@ -297,14 +369,15 @@ Test alerts should be documented so intentional validation can be distinguished 
 
 ## Planned documentation
 
-As notification coverage is implemented, this section should gain:
+Completed notification-delivery architecture is documented in [`checkmk-notifications.md`](checkmk-notifications.md).
 
-* sanitized Checkmk notification-rule examples
+Additional documentation should be added as the alerting model matures:
+
+* sanitized Checkmk notification-rule examples where useful
 * alert ownership matrix
-* notification-routing documentation
 * response runbooks for persistent alerts
-* validation records for warning, critical, recovery, acknowledgement, and downtime behavior
+* validation records for recovery, acknowledgement, and downtime behavior
 * sanitized Prometheus alert-rule examples if Prometheus-owned alerts are introduced
 * Alertmanager configuration and maintenance procedures only if Alertmanager is ultimately deployed
 
-Completed implementation work should move from this roadmap into the main monitoring documentation and changelog.
+Completed implementation work should continue moving from this roadmap into the main monitoring documentation and changelog.
