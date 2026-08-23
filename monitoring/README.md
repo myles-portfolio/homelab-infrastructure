@@ -6,7 +6,7 @@ This section documents the sanitized monitoring architecture used by the homelab
 
 The current metrics stack is hosted on a dedicated Ubuntu virtual machine and uses Docker Compose to run Prometheus, Grafana, and a NUT exporter. Prometheus also scrapes host-level metrics from the Proxmox VE host through Node Exporter and a Proxmox-specific exporter.
 
-Checkmk Community is deployed on a separate Debian virtual machine as a complementary infrastructure and service-monitoring layer. Its role is host state, service state, Linux agent monitoring, SNMP monitoring, active checks, and infrastructure-focused notifications where an operational state model is more useful than time-series analysis.
+Checkmk Community is deployed on a separate Debian virtual machine as a complementary infrastructure and service-monitoring layer. Its role is host state, service state, Linux agent monitoring, supported network-device monitoring, active checks, and infrastructure-focused notifications where an operational state model is more useful than time-series analysis.
 
 See [`checkmk-plan.md`](checkmk-plan.md) for the deployment and evaluation plan and [`checkmk-configuration-standards.md`](checkmk-configuration-standards.md) for the current folder, classification, label, and rule-targeting standards.
 
@@ -15,7 +15,7 @@ See [`checkmk-plan.md`](checkmk-plan.md) for the deployment and evaluation plan 
 ```text
 Infrastructure
    |
-   +--> Checkmk agents / SNMP / active checks
+   +--> Checkmk agents / supported network monitoring / active checks
    |          |
    |          v
    |       Checkmk
@@ -83,7 +83,8 @@ The current platform state includes:
 * validated classification-based rule targeting
 * controlled service, agent, and host state-transition testing
 * core guest coverage completed across DNS, password management, file services, Home Assistant, and the monitoring stack
-* active checks validating DNS behavior, authenticated SMB access, user-facing web availability, Prometheus availability, and Grafana availability
+* network infrastructure coverage completed for the current core router and switch
+* active checks validating DNS behavior, authenticated SMB access, user-facing web availability, Prometheus availability, Grafana availability, and network management-interface availability
 
 ## Checkmk configuration model
 
@@ -97,7 +98,7 @@ The classification model uses:
 
 The validated custom host-tag dimensions are Environment, Service Criticality, Platform, Virtualization, and Service Class.
 
-Rules are targeted through reusable classifications wherever practical. Validated examples include development filesystem thresholds, DNS active checks, authenticated SMB checks, application HTTP checks, and Linux-container-specific memory thresholds.
+Rules are targeted through reusable classifications wherever practical. Validated examples include development filesystem thresholds, DNS active checks, authenticated SMB checks, application HTTP checks, network management-interface checks, and Linux-container-specific memory thresholds.
 
 ## Linux agent onboarding
 
@@ -125,7 +126,14 @@ Phase 3 established several application-level patterns:
 * Home Assistant is monitored as an appliance-style VM through its web endpoint without forcing an unsupported general-purpose Linux agent onto the operating system.
 * Prometheus and Grafana are checked independently through separate HTTP availability checks.
 
-These checks answer whether the service is actually usable, rather than only whether the guest or process exists.
+Phase 4 extended the same principle to current network infrastructure:
+
+* the core router is monitored for ICMP reachability and management-interface availability
+* the core switch is monitored independently for ICMP reachability and management-interface availability
+* SNMP was evaluated but is not available on the current router firmware or switch model
+* SNMP remains the preferred deeper-monitoring method for future network hardware that supports it
+
+These checks answer whether the service or management path is actually usable, rather than only whether a device exists on the network.
 
 ## Container-specific monitoring
 
@@ -172,10 +180,10 @@ Checkmk uses a similar layered validation model:
 1. confirm the Checkmk VM is healthy
 2. confirm site services and the web interface are operational
 3. confirm backup coverage and restore behavior
-4. confirm host agent or appliance reachability
-5. confirm service discovery returns expected data
+4. confirm host agent, appliance, or network-device reachability
+5. confirm service discovery returns expected data where supported
 6. confirm effective classification-based rules
-7. confirm meaningful application-level checks
+7. confirm meaningful application or management-interface checks
 8. validate distinct service, agent, and host failure behavior
 9. validate notification delivery after notification rules are introduced
 
@@ -222,11 +230,12 @@ Checkmk has its own maintenance workflow because it is installed natively on a d
 12. **Verify effective configuration.** Creating a rule is not sufficient until the intended service shows the resulting effective parameters.
 13. **Test failure modes deliberately.** A monitoring design is not validated until expected service, agent, and host failures produce distinct and recoverable states.
 14. **Use least privilege for authenticated checks.** Monitoring identities should receive only the access required to validate the service.
+15. **Match monitoring depth to device capability.** Prefer supported management protocols and avoid weakening or replacing stable device firmware solely to gain telemetry.
 
 ## Current monitoring coverage
 
-Checkmk Phases 1 through 3 are complete. Platform deployment and restore behavior are validated, the low-risk onboarding model has been failure-tested, and core guest coverage now includes DNS, password management, file services, Home Assistant, Prometheus, and Grafana.
+Checkmk Phases 1 through 4 are complete. Platform deployment and restore behavior are validated, the low-risk onboarding model has been failure-tested, core guest coverage includes DNS, password management, file services, Home Assistant, Prometheus, and Grafana, and the current core router and switch are monitored for reachability and management-interface availability.
 
-The next rollout work is network infrastructure monitoring, followed by deliberate Proxmox hypervisor onboarding and notification ownership design.
+The next rollout work is deliberate Proxmox hypervisor onboarding, followed by notification ownership and delivery once an outbound mail path is available.
 
-See [`checkmk-plan.md`](checkmk-plan.md) for the Checkmk rollout sequence and [`alerting-roadmap.md`](alerting-roadmap.md) for the Prometheus alerting backlog.
+See [`checkmk-plan.md`](checkmk-plan.md) for the Checkmk rollout sequence and [`alerting-roadmap.md`](alerting-roadmap.md) for notification architecture and ownership planning.
