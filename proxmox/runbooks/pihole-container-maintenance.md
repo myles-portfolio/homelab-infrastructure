@@ -6,6 +6,12 @@ This runbook documents maintenance for a Linux container hosting Pi-hole as a lo
 
 Because DNS is infrastructure-critical, maintenance is validated through actual name resolution rather than package state alone.
 
+## Monitoring suppression
+
+Before disruptive maintenance, schedule Checkmk downtime for the monitored DNS host and any separately monitored dependency that will intentionally become unavailable.
+
+Follow the [Checkmk maintenance downtime standard](../../monitoring/checkmk/maintenance-downtime.md). Verify the downtime is active before rebooting or restarting DNS services. Keep it active through name-resolution validation, then remove it early or allow it to expire after the host returns to its expected monitored state.
+
 ## Pre-maintenance checks
 
 1. Confirm the container is running.
@@ -104,3 +110,4 @@ Maintenance is complete only when:
 * Pi-hole version is recorded after application maintenance
 * external DNS resolution succeeds
 * internal DNS resolution succeeds where applicable
+* Checkmk reports the expected final host and service states before downtime is removed
