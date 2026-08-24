@@ -6,6 +6,12 @@ This runbook documents maintenance for a Home Assistant OS virtual machine hoste
 
 Home Assistant OS is treated as an appliance-style workload. It is not maintained with `apt` or other general-purpose Linux package workflows. Maintenance is performed through Home Assistant's own update and backup interfaces, with Proxmox used for VM-level health and rollback support when needed.
 
+## Monitoring suppression
+
+Before disruptive maintenance, schedule Checkmk downtime for the monitored Home Assistant host and any separately monitored dependency that will intentionally become unavailable.
+
+Follow the [Checkmk maintenance downtime standard](../../monitoring/checkmk/maintenance-downtime.md). Verify the downtime is active before applying an update or rebooting the VM. Keep it active through integration, automation, dashboard, and backup validation, then remove it early or allow it to expire after the host returns to its expected monitored state.
+
 ## Maintenance principles
 
 * Confirm the VM is running normally before making changes.
@@ -118,6 +124,7 @@ Examples of checks after Home Assistant maintenance include:
 * dashboard cards render correctly
 * reverse-proxy access still works
 * backup destinations remain available
+* Checkmk returns the Home Assistant host to its expected monitored state
 
 ## Rollback
 
