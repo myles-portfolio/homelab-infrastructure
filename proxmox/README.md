@@ -21,16 +21,18 @@ This prevents guests from being omitted simply because they were missing from an
 
 ### Current sanitized inventory
 
-| Guest | Role | Maintenance focus |
+| Guest type | Role | Maintenance focus |
 |---|---|---|
-| CT 101 | File services | OS packages, file-sharing services, client validation |
-| CT 102 | Media server | Preserve intentional stopped state when applicable |
-| VM 103 | Metrics and visualization | Ubuntu, Docker, Prometheus, Grafana, NUT exporter, QEMU Guest Agent |
-| CT 104 | Password manager | OS packages plus Vaultwarden image refresh, recreation, and client validation |
-| CT 105 | DNS / filtering | OS packages plus Pi-hole application and DNS validation |
-| VM 106 | Development workload | Ubuntu, PostgreSQL, application database backup and query validation |
-| VM 107 | Home automation | Home Assistant-specific maintenance, backup, and integration validation |
-| VM 108 | Infrastructure monitoring | Debian, Checkmk site health, notification transport, monitoring recovery |
+| LXC | File services | OS packages, file-sharing services, client validation |
+| LXC | Media server | Preserve intentional stopped state when applicable |
+| VM | Metrics and visualization | Ubuntu, Docker, Prometheus, Grafana, NUT exporter, QEMU Guest Agent |
+| LXC | Password manager | OS packages plus Vaultwarden image refresh, recreation, and client validation |
+| LXC | DNS / filtering | OS packages plus Pi-hole application and DNS validation |
+| VM | Development workload | Ubuntu, PostgreSQL, application database backup and query validation |
+| VM | Home automation | Home Assistant-specific maintenance, backup, and integration validation |
+| VM | Infrastructure monitoring | Debian, Checkmk site health, notification transport, monitoring recovery |
+
+The public inventory intentionally omits live Proxmox guest IDs, hostnames, and addresses. Operational procedures use placeholders such as `<vmid>` and `<ctid>` where an identifier is required.
 
 ## Maintenance principles
 
