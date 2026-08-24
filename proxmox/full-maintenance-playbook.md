@@ -99,7 +99,7 @@ Recommended sequence for a small single-host environment:
 3. DNS and filtering service
 4. development workload
 5. Home Assistant
-6. general monitoring stack
+6. metrics and visualization stack
 7. other active guests
 8. Proxmox hypervisor
 9. Checkmk monitoring server, when it is maintained in the same window
@@ -116,6 +116,7 @@ Use the corresponding runbook for each workload:
 * [Development VM maintenance](runbooks/development-vm-maintenance.md)
 * [Home Assistant VM maintenance](runbooks/home-assistant-vm-maintenance.md)
 * [Monitoring VM maintenance](runbooks/monitoring-vm-maintenance.md)
+* [Checkmk VM maintenance](runbooks/checkmk-vm-maintenance.md)
 
 Each runbook must include or inherit these minimum controls:
 
@@ -167,6 +168,8 @@ Correct autostart configuration where policy requires the guest to return automa
 Then validate each workload at the application level. A guest showing `running` is not sufficient evidence of service recovery.
 
 ## Phase 7: Maintain the Checkmk server
+
+Use the [Checkmk VM Maintenance Runbook](runbooks/checkmk-vm-maintenance.md).
 
 If the Checkmk server itself requires maintenance during the same window, perform it after the other infrastructure has returned to a known-good state whenever practical.
 
