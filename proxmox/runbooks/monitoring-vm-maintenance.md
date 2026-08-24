@@ -12,6 +12,12 @@ The monitored application stack consists of:
 
 The exact guest ID, hostname, IP address, internal zone names, and other environment-specific identifiers are intentionally omitted from the public version.
 
+## Monitoring suppression
+
+Before disruptive maintenance, schedule Checkmk downtime for the monitored metrics and visualization host and any separately monitored dependency that will intentionally become unavailable.
+
+Follow the [Checkmk maintenance downtime standard](../../monitoring/checkmk/maintenance-downtime.md). Verify the downtime is active before rebooting, restarting Docker, or recreating containers. Keep it active through Prometheus, Grafana, exporter, and guest-agent validation, then remove it early or allow it to expire after the host returns to its expected monitored state.
+
 ## Maintenance scope
 
 A full maintenance cycle covers:
@@ -243,6 +249,7 @@ Also confirm:
 * Prometheus responds
 * expected Prometheus targets are healthy
 * Proxmox guest-agent communication succeeds
+* Checkmk reports the expected final host and service states before downtime is removed
 
 ## Cleanup
 
