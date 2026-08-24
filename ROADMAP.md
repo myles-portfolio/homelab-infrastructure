@@ -21,9 +21,9 @@ Success criteria:
 
 Checkmk Community is deployed as an infrastructure and service-monitoring layer alongside the existing Prometheus and Grafana observability stack.
 
-Phases 1 through 5 are complete. The rollout now covers platform deployment, low-risk validation, core guest services, current network infrastructure, and the Proxmox hypervisor. Hypervisor coverage includes Linux host state, Proxmox processes, ZFS pool health, physical-disk SMART health, and intentionally scoped host interfaces. The Proxmox API special agent remains disabled because of a compatibility crash in the current integration path, while the normal Linux-agent and existing Prometheus exporter coverage remain healthy.
+Phases 1 through 6 are complete. The rollout covers platform deployment, low-risk validation, core guest services, current network infrastructure, the Proxmox hypervisor, and outbound email notification delivery. Hypervisor coverage includes Linux host state, Proxmox processes, ZFS pool health, physical-disk SMART health, and intentionally scoped host interfaces. The Proxmox API special agent remains disabled because of a compatibility crash in the current integration path, while the normal Linux-agent and existing Prometheus exporter coverage remain healthy.
 
-Outbound Checkmk notification delivery is also operational. Checkmk Community hands HTML notifications to a local Postfix relay, which submits mail through a managed SMTP service using authenticated STARTTLS. Contact-group routing, a fallback destination, and end-to-end test delivery are validated. Notification volume will now be observed before introducing additional throttling, delays, or escalation behavior.
+Outbound Checkmk notification delivery is operational. Checkmk Community hands HTML notifications to a local Postfix relay, which submits mail through a managed SMTP service using authenticated STARTTLS. Contact-group routing, a fallback destination, and end-to-end test delivery are validated. Notification volume will now be observed before introducing additional throttling, delays, or escalation behavior.
 
 Goals:
 
@@ -43,7 +43,7 @@ Next rollout sequence:
 5. use SNMP for future network devices where the hardware supports it
 6. evaluate Alertmanager only for Prometheus-owned metric conditions that justify a separate routing path
 
-See [`monitoring/checkmk-plan.md`](monitoring/checkmk-plan.md) for the detailed deployment plan, [`monitoring/checkmk-configuration-standards.md`](monitoring/checkmk-configuration-standards.md) for the current taxonomy and rule-targeting model, and [`monitoring/checkmk-notifications.md`](monitoring/checkmk-notifications.md) for the sanitized notification-delivery design.
+See [`monitoring/checkmk/README.md`](monitoring/checkmk/README.md) for the Checkmk documentation index, [`monitoring/checkmk/checkmk-plan.md`](monitoring/checkmk/checkmk-plan.md) for the detailed deployment plan, [`monitoring/checkmk/checkmk-configuration-standards.md`](monitoring/checkmk/checkmk-configuration-standards.md) for the current taxonomy and rule-targeting model, and [`monitoring/checkmk/checkmk-notifications.md`](monitoring/checkmk/checkmk-notifications.md) for the sanitized notification-delivery design.
 
 ### Backup verification and restore testing
 
