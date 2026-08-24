@@ -6,6 +6,12 @@ This runbook documents maintenance for a sanitized Ubuntu development VM running
 
 The workflow separates operating-system maintenance from database validation and preserves both application-level and VM-level rollback options.
 
+## Monitoring suppression
+
+Before disruptive maintenance, schedule Checkmk downtime for the monitored development host and any separately monitored dependency that will intentionally become unavailable.
+
+Follow the [Checkmk maintenance downtime standard](../../monitoring/checkmk/maintenance-downtime.md). Verify the downtime is active before rebooting or restarting application services. Keep it active through database and application validation, then remove it early or allow it to expire after the host returns to its expected monitored state.
+
 ## Current service profile
 
 Validated workload characteristics:
@@ -156,6 +162,7 @@ After all validation passes:
 1. Delete the temporary pre-maintenance snapshot.
 2. Retain the logical PostgreSQL dump until the next successful backup cycle.
 3. Record package or service changes that materially affect the workload.
+4. Confirm Checkmk reports the expected final host and service states before removing downtime.
 
 ## Rollback
 
