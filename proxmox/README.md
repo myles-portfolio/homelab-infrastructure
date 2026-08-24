@@ -73,3 +73,4 @@ Examples of service-specific validation include:
 * [Pi-hole container maintenance](runbooks/pihole-container-maintenance.md)
 * [Development VM maintenance](runbooks/development-vm-maintenance.md)
 * [Home Assistant VM maintenance](runbooks/home-assistant-vm-maintenance.md)
+* [Checkmk VM maintenance](runbooks/checkmk-vm-maintenance.md)
