@@ -167,7 +167,7 @@ Validated patterns include:
 * application web checks targeted through service class and service-role metadata
 * Linux-container memory tuning targeted through platform and virtualization tags
 * hypervisor service suppression targeted through production, Linux, physical, core-infrastructure, and hypervisor-role metadata
-* SMART temperature thresholds targeted through the hypervisor classifications and exact drive sensor identifiers
+* SMART temperature thresholds targeted through the hypervisor classifications and drive-model sensor identifiers
 * contact-group assignment targeted broadly through reusable host scope rather than per-host recipient configuration
 
 The intended operating model is:
@@ -334,14 +334,20 @@ Per-guest ZFS subvolume filesystems are disabled at the hypervisor layer because
 
 Use the current `smart_posix` agent plug-in for physical disk health.
 
-SMART services should include drive-health statistics and temperature where supported. Temperature thresholds should be tuned only when the generic defaults are inappropriate for the installed drive model. The effective check item should be verified before building Sensor ID conditions because the visible service name can differ from the internal item used by the ruleset.
+SMART services should include drive-health statistics and temperature where supported. Temperature thresholds should be tuned only when generic defaults are inappropriate for the installed drive class or model. The effective check item should be verified before building Sensor ID conditions because the visible service name can differ from the internal item used by the ruleset.
 
-For the current high-capacity HDD class, the validated temperature levels are:
+Temperature rules are scoped by drive model rather than by full service name or serial number so replacement drives of the same class inherit the intended policy without exposing device-specific identifiers.
 
-* warning: 50 degrees Celsius
-* critical: 60 degrees Celsius
+Current validated levels are:
 
-These thresholds are scoped only to the matching HDD sensor identifiers rather than globally changing SMART temperature behavior.
+| Drive class | Warning | Critical |
+|---|---:|---:|
+| High-capacity NAS HDD | 55 degrees Celsius | 60 degrees Celsius |
+| SATA SSD | 55 degrees Celsius | 65 degrees Celsius |
+
+The HDD warning threshold was raised after observation showed normal thermal cycling repeatedly crossing the earlier threshold without evidence of drive-health degradation. The SSD received its own rule because the generic SMART temperature levels were materially below its expected operating range.
+
+Threshold changes should be based on the drive manufacturer's operating guidance and observed steady-state behavior. Do not globally weaken SMART temperature monitoring to solve noise from one model.
 
 ### Proxmox API integration
 
