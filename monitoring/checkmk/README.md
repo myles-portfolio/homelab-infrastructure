@@ -6,9 +6,9 @@ Checkmk Community is the primary platform for infrastructure and service-state m
 
 ## Documentation
 
-* [`deployment-plan.md`](deployment-plan.md) documents the Checkmk deployment, rollout phases, monitoring coverage, recovery model, and current implementation state.
-* [`configuration-standards.md`](configuration-standards.md) defines naming, folder inheritance, classifications, labels, rule targeting, contact routing, and notification standards.
-* [`notifications.md`](notifications.md) documents the sanitized email-notification architecture, including Checkmk, Postfix, the managed SMTP relay, validation, and maintenance expectations.
+* [`checkmk-plan.md`](checkmk-plan.md) documents the Checkmk deployment, rollout phases, monitoring coverage, recovery model, and current implementation state.
+* [`checkmk-configuration-standards.md`](checkmk-configuration-standards.md) defines naming, folder inheritance, classifications, labels, rule targeting, contact routing, and notification standards.
+* [`checkmk-notifications.md`](checkmk-notifications.md) documents the sanitized email-notification architecture, including Checkmk, Postfix, the managed SMTP relay, validation, and maintenance expectations.
 * [`../alerting-roadmap.md`](../alerting-roadmap.md) defines notification ownership across Checkmk and the Prometheus alerting path.
 * [`../README.md`](../README.md) documents the overall monitoring and observability architecture.
 
