@@ -9,9 +9,9 @@ This repository is a public portfolio of systems administration, infrastructure 
 If you are reviewing this repository as a portfolio, these are the best entry points:
 
 1. **Architecture:** [`architecture/overview.md`](architecture/overview.md) provides the sanitized system topology, workload roles, backup model, and design principles.
-2. **Systems operations:** [`proxmox/README.md`](proxmox/README.md) explains the maintenance model and links to workload-specific runbooks.
+2. **Systems operations:** [`proxmox/README.md`](proxmox/README.md) explains the maintenance model and links to the hypervisor, guest, and full-environment maintenance procedures.
 3. **Networking:** [`networking/README.md`](networking/README.md) documents DNS, split DNS, reverse-proxy patterns, dependencies, and troubleshooting.
-4. **Monitoring:** [`monitoring/README.md`](monitoring/README.md) explains the Prometheus, Grafana, exporter, and alerting model.
+4. **Monitoring:** [`monitoring/README.md`](monitoring/README.md) explains the Checkmk, Prometheus, Grafana, exporter, and alert-ownership model.
 5. **Backup and recovery:** [`backup-recovery/README.md`](backup-recovery/README.md) documents the layered recovery model across snapshots, application backups, logical database dumps, and network backup copies.
 6. **Security:** [`security/README.md`](security/README.md) describes exposure reduction, service accounts, secrets handling, backup resilience, and hardening priorities.
 7. **Automation case study:** [`home-assistant/hvac/README.md`](home-assistant/hvac/README.md) documents a presence-aware HVAC control system built in Home Assistant.
@@ -23,9 +23,13 @@ If you are reviewing this repository as a portfolio, these are the best entry po
 ## What this repository demonstrates
 
 * Proxmox VE administration across virtual machines and Linux containers
+* Hypervisor, guest, and full-environment maintenance orchestration
 * Linux server and service maintenance
 * Docker Compose application operations
-* Prometheus and Grafana observability
+* Checkmk infrastructure and service-state monitoring
+* Prometheus metrics collection and Grafana visualization
+* Notification delivery through Postfix and an authenticated SMTP relay
+* Planned-maintenance alert suppression through Checkmk scheduled downtime
 * PostgreSQL backup and validation
 * Home Assistant automation and appliance maintenance
 * Samba-based network storage and dedicated service accounts
@@ -48,7 +52,8 @@ flowchart TB
     Proxmox[Proxmox VE Host]
 
     FileServices[File Services]
-    Monitoring[Monitoring]
+    Metrics[Metrics and Visualization]
+    Checkmk[Infrastructure Monitoring]
     Passwords[Password Management]
     DNS[DNS and Filtering]
     Development[Development]
@@ -58,7 +63,8 @@ flowchart TB
     Internet --> Clients
 
     Proxmox --> FileServices
-    Proxmox --> Monitoring
+    Proxmox --> Metrics
+    Proxmox --> Checkmk
     Proxmox --> Passwords
     Proxmox --> DNS
     Proxmox --> Development
@@ -66,7 +72,8 @@ flowchart TB
     Proxmox --> Media
 
     Clients --> FileServices
-    Clients --> Monitoring
+    Clients --> Metrics
+    Clients --> Checkmk
     Clients --> Passwords
     Clients --> DNS
     Clients --> HomeAutomation
@@ -74,10 +81,12 @@ flowchart TB
 
     DNS --> Passwords
     DNS --> HomeAutomation
-    DNS --> Monitoring
+    DNS --> Metrics
+    DNS --> Checkmk
 
     HomeAutomation --> FileServices
-    Monitoring --> Proxmox
+    Checkmk --> Proxmox
+    Metrics --> Proxmox
 ```
 
 High-level view of the major functional domains hosted on the Proxmox platform.
@@ -118,13 +127,17 @@ The implementation separates predictable schedule transitions from dynamic prese
 
 See [`home-assistant/hvac/`](home-assistant/hvac/) for the design notes, schedule model, and sanitized automation.
 
-### Proxmox guest maintenance and service validation
+### Proxmox maintenance and service validation
 
-Maintenance workflows treat the hypervisor and each guest as separate operational domains. The live guest inventory is reconciled before maintenance, rollback protection is selected based on workload risk, and application health is validated independently of operating-system package state.
+Maintenance workflows treat the hypervisor and each guest as separate operational domains while also providing a coordinated full-environment playbook. The live guest inventory is reconciled before maintenance, Checkmk downtime is scheduled before intentional disruption, rollback protection is selected based on workload risk, and application health is validated independently of operating-system package state.
 
 Examples include:
 
+* Proxmox repository, DNS, storage, kernel, and post-reboot validation
+* VM autostart verification after hypervisor maintenance
+* UEFI certificate maintenance for affected guests
 * Docker-based Prometheus, Grafana, and NUT exporter maintenance
+* Checkmk server, notification-path, and monitoring-recovery validation
 * QEMU Guest Agent deployment and validation
 * PostgreSQL logical backup before VM maintenance
 * Home Assistant local and external backup validation
@@ -133,7 +146,7 @@ Examples include:
 * Pi-hole DNS validation after package maintenance
 * Samba configuration and service validation
 
-See [`proxmox/`](proxmox/) for the operational model and runbooks.
+See [`proxmox/`](proxmox/) for the operational model, [`proxmox/full-maintenance-playbook.md`](proxmox/full-maintenance-playbook.md) for coordinated environment maintenance, and [`proxmox/runbooks/hypervisor-maintenance.md`](proxmox/runbooks/hypervisor-maintenance.md) for the hypervisor procedure.
 
 ### Networking and dependency isolation
 
@@ -149,9 +162,13 @@ See:
 
 ### Monitoring and observability
 
-Prometheus, Grafana, Node Exporter, the PVE exporter, and the NUT exporter provide the current monitoring foundation. Alertmanager is the selected next step for notification routing and alert delivery.
+Checkmk Community is the primary infrastructure and service-state monitoring platform. It provides host and service health, active application checks, state transitions, scheduled-downtime handling, contact routing, and email notifications. Prometheus remains responsible for time-series metrics collection, while Grafana remains the visualization layer.
 
-See [`monitoring/README.md`](monitoring/README.md) and [`monitoring/alerting-roadmap.md`](monitoring/alerting-roadmap.md).
+The monitoring implementation includes Linux-agent coverage, application-level active checks, Proxmox host and ZFS health, SMART monitoring, scoped interface monitoring, notification routing, flapping suppression, and outbound mail delivery through Postfix and a managed SMTP relay.
+
+Planned maintenance uses Checkmk scheduled downtime so intentional outages do not generate actionable notifications while unrelated infrastructure continues to alert normally.
+
+See [`monitoring/README.md`](monitoring/README.md), [`monitoring/checkmk/README.md`](monitoring/checkmk/README.md), [`monitoring/checkmk/maintenance-downtime.md`](monitoring/checkmk/maintenance-downtime.md), and [`monitoring/alerting-roadmap.md`](monitoring/alerting-roadmap.md).
 
 ### Backup and recovery
 
@@ -218,6 +235,11 @@ home-assistant/
 monitoring/
   README.md
   alerting-roadmap.md
+  checkmk/
+    README.md
+    checkmk-configuration-standards.md
+    checkmk-notifications.md
+    maintenance-downtime.md
   diagrams/
     monitoring-diagram.png
 
@@ -230,10 +252,13 @@ networking/
 
 proxmox/
   README.md
+  full-maintenance-playbook.md
   runbooks/
+    checkmk-vm-maintenance.md
     development-vm-maintenance.md
     fileshare-container-maintenance.md
     home-assistant-vm-maintenance.md
+    hypervisor-maintenance.md
     monitoring-vm-maintenance.md
     pihole-container-maintenance.md
     vaultwarden-container-maintenance.md
@@ -251,35 +276,38 @@ SECURITY.md
 A few principles recur throughout this environment:
 
 1. Reconcile the live inventory before maintenance.
-2. Validate the hosted application, not only the operating system.
-3. Use workload-appropriate recovery controls such as snapshots, application backups, and database dumps.
-4. Separate predictable schedules from dynamic automation logic.
-5. Use dedicated service accounts for machine-to-machine access when practical.
-6. Remove temporary rollback artifacts after successful validation.
-7. Treat application updates and guest operating-system updates as separate maintenance layers when appropriate.
-8. Troubleshoot dependencies before restarting services or changing configuration.
-9. Reduce exposure and trust boundaries wherever practical.
-10. Keep public documentation useful to reviewers without exposing the live environment unnecessarily.
+2. Put intentionally affected monitored hosts into scheduled downtime before disruptive maintenance.
+3. Validate the hosted application, not only the operating system.
+4. Use workload-appropriate recovery controls such as snapshots, application backups, and database dumps.
+5. Separate predictable schedules from dynamic automation logic.
+6. Use dedicated service accounts for machine-to-machine access when practical.
+7. Remove temporary rollback artifacts after successful validation.
+8. Treat application updates and guest operating-system updates as separate maintenance layers when appropriate.
+9. Troubleshoot dependencies before restarting services or changing configuration.
+10. Restore monitoring coverage only after post-maintenance validation is complete.
+11. Reduce exposure and trust boundaries wherever practical.
+12. Keep public documentation useful to reviewers without exposing the live environment unnecessarily.
 
 ## Current technology areas
 
 | Area | Technologies and concepts |
 |---|---|
-| Virtualization | Proxmox VE, KVM, LXC, snapshots, QEMU Guest Agent |
-| Linux operations | Ubuntu, Debian-based package management, systemd, SSH |
+| Virtualization | Proxmox VE, KVM, LXC, snapshots, QEMU Guest Agent, guest autostart |
+| Linux operations | Ubuntu, Debian, package management, systemd, SSH |
 | Containers | Docker, Docker Compose, persistent volumes |
-| Observability | Prometheus, Grafana, Node Exporter, PVE exporter, NUT exporter, Alertmanager roadmap |
+| Observability | Checkmk, Prometheus, Grafana, Node Exporter, PVE exporter, NUT exporter, active checks, scheduled downtime |
+| Alert delivery | Checkmk notifications, Postfix, authenticated SMTP relay, TLS, contact-group routing |
 | Data | PostgreSQL, logical backups, query validation |
 | Network services | Pi-hole, split DNS, Samba, reverse proxy, TLS |
 | Backup and recovery | Proxmox snapshots, Home Assistant backups, Samba backup copies, PostgreSQL dumps |
 | Security | Service accounts, exposure reduction, trusted proxies, secrets handling, recovery controls |
 | Identity and secrets | Vaultwarden, dedicated service identities |
 | Home automation | Home Assistant OS, HACS, Zigbee, climate automation |
-| Operations | Change records, maintenance runbooks, rollback planning, validation |
+| Operations | Change records, maintenance runbooks, full-environment playbooks, rollback planning, validation |
 
 ## Roadmap
 
-The lab remains an active engineering environment. Planned work includes secure remote access, dedicated reverse-proxy isolation, certificate-expiration monitoring, automated backup restore testing, SSH hardening, enhanced UPS notifications, and additional observability.
+The lab remains an active engineering environment. Planned work includes secure remote access, dedicated reverse-proxy isolation, certificate-expiration monitoring, automated backup restore testing, SSH hardening, enhanced UPS notifications, and additional observability depth.
 
 See [`ROADMAP.md`](ROADMAP.md) for the current backlog.
 
