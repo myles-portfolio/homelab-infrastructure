@@ -45,9 +45,10 @@ The public inventory intentionally omits live Proxmox guest IDs, hostnames, and 
 7. Validate systemd health after package changes.
 8. Validate application services after operating-system changes.
 9. Confirm Proxmox guest communication where QEMU Guest Agent is expected.
-10. Remove temporary snapshots and installation media after validation.
-11. Confirm Checkmk returns to the expected final state before maintenance downtime is removed.
-12. Document deviations discovered during the maintenance window.
+10. Validate hypervisor system-mail delivery when Postfix or notification configuration changes.
+11. Remove temporary snapshots and installation media after validation.
+12. Confirm Checkmk returns to the expected final state before maintenance downtime is removed.
+13. Document deviations discovered during the maintenance window.
 
 ## Application-level validation
 
@@ -60,6 +61,7 @@ Examples of service-specific validation include:
 * PostgreSQL accepts application database queries after maintenance
 * Home Assistant integrations, automations, dashboards, and backup locations remain operational
 * Checkmk host and service state, site health, and notification delivery remain operational
+* Proxmox system mail successfully leaves the host through the authenticated relay and the deferred queue remains empty
 
 ## Maintenance orchestration
 
@@ -69,6 +71,7 @@ Examples of service-specific validation include:
 ## Runbooks
 
 * [Proxmox VE hypervisor maintenance](runbooks/hypervisor-maintenance.md)
+* [Proxmox system mail relay](runbooks/system-mail-relay.md)
 * [File services container maintenance](runbooks/fileshare-container-maintenance.md)
 * [Monitoring VM maintenance](runbooks/monitoring-vm-maintenance.md)
 * [Vaultwarden container maintenance](runbooks/vaultwarden-container-maintenance.md)
