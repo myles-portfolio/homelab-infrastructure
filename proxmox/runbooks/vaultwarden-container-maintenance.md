@@ -11,6 +11,12 @@ The workload has two separate maintenance layers:
 
 Updating only the guest OS is not considered complete maintenance.
 
+## Monitoring suppression
+
+Before disruptive maintenance, schedule Checkmk downtime for the monitored password-management host and any separately monitored dependency that will intentionally become unavailable.
+
+Follow the [Checkmk maintenance downtime standard](../../monitoring/checkmk/maintenance-downtime.md). Verify the downtime is active before rebooting, recreating the application container, or restarting services. Keep it active through client and synchronization validation, then remove it early or allow it to expire after the host returns to its expected monitored state.
+
 ## Pre-maintenance checks
 
 1. Confirm the container is running.
@@ -104,3 +110,4 @@ Maintenance is complete only when:
 * the web interface is reachable
 * the deployed version has been verified
 * client synchronization succeeds
+* Checkmk reports the expected final host and service states before downtime is removed
