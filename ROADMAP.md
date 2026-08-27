@@ -36,12 +36,13 @@ Goals:
 
 Next rollout sequence:
 
-1. observe real notification volume and tune noisy or transient conditions only where operational evidence justifies it
-2. validate recovery, acknowledgement, and scheduled-downtime notification behavior through controlled tests
-3. revisit the Proxmox special-agent integration after a compatible Checkmk or Proxmox update
-4. continue adding application-level checks where they provide meaningful operational evidence
-5. use SNMP for future network devices where the hardware supports it
-6. evaluate Alertmanager only for Prometheus-owned metric conditions that justify a separate routing path
+1. onboard the new personal knowledge / RAG backend and validate Linux, filesystem, PostgreSQL, and later application-level service state
+2. observe real notification volume and tune noisy or transient conditions only where operational evidence justifies it
+3. validate recovery, acknowledgement, and scheduled-downtime notification behavior through controlled tests
+4. revisit the Proxmox special-agent integration after a compatible Checkmk or Proxmox update
+5. continue adding application-level checks where they provide meaningful operational evidence
+6. use SNMP for future network devices where the hardware supports it
+7. evaluate Alertmanager only for Prometheus-owned metric conditions that justify a separate routing path
 
 See [`monitoring/checkmk/README.md`](monitoring/checkmk/README.md) for the Checkmk documentation index, [`monitoring/checkmk/checkmk-plan.md`](monitoring/checkmk/checkmk-plan.md) for the detailed deployment plan, [`monitoring/checkmk/checkmk-configuration-standards.md`](monitoring/checkmk/checkmk-configuration-standards.md) for the current taxonomy and rule-targeting model, and [`monitoring/checkmk/checkmk-notifications.md`](monitoring/checkmk/checkmk-notifications.md) for the sanitized notification-delivery design.
 
@@ -51,6 +52,8 @@ Scheduled Proxmox backup coverage is organized into workload-specific jobs rathe
 
 A controlled Checkmk restore test has validated the recovery process for one critical VM. Restore testing should now become a repeatable operational practice rather than a one-time deployment task.
 
+A newly deployed personal knowledge / RAG backend still requires scheduled guest backup coverage and a restore validation. Its synchronized source-vault dataset is a separate recovery domain and must not be assumed to be protected by the container backup.
+
 Goals:
 
 * periodically verify that backups remain recoverable
@@ -58,6 +61,8 @@ Goals:
 * distinguish VM-level, container-level, application-level, and database-level recovery
 * review workload-specific backup mode and retention as services change
 * identify externally mounted datasets that require separate protection
+* add the knowledge-platform container to an appropriate scheduled backup job and validate restore behavior
+* keep source Markdown protection independent from the rebuildable RAG database and index
 
 ## Planned
 
