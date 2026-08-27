@@ -57,6 +57,8 @@ Validated coverage includes:
 * contact-group-based notification routing
 * HTML email notification delivery through Postfix and a managed SMTP relay
 
+A newly deployed personal knowledge and RAG backend has not yet been onboarded into Checkmk. Planned coverage includes Linux host health, filesystem capacity, PostgreSQL availability, and application-level service validation after the API and ingestion services enter production use.
+
 See [`checkmk/README.md`](checkmk/README.md) for the Checkmk documentation index.
 
 ## Prometheus
@@ -104,6 +106,8 @@ For Checkmk, validation may include:
 7. Postfix and SMTP relay delivery
 8. final mailbox receipt
 9. recovery behavior
+
+For database-backed application services, validation should also distinguish guest health from database availability and user-facing application health.
 
 For Prometheus and Grafana, validation should distinguish metrics collection, exporter health, Prometheus target state, query behavior, and dashboard availability.
 
