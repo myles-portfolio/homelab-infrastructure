@@ -31,6 +31,7 @@ This prevents guests from being omitted simply because they were missing from an
 | VM | Development workload | Ubuntu, PostgreSQL, application database backup and query validation |
 | VM | Home automation | Home Assistant-specific maintenance, backup, and integration validation |
 | VM | Infrastructure monitoring | Debian, Checkmk site health, notification transport, monitoring recovery |
+| LXC | Personal knowledge / RAG backend | Debian, PostgreSQL, pgvector, ingestion service, API health, database connectivity |
 
 The public inventory intentionally omits live Proxmox guest IDs, hostnames, and addresses. Operational procedures use placeholders such as `<vmid>` and `<ctid>` where an identifier is required.
 
@@ -62,6 +63,8 @@ Examples of service-specific validation include:
 * Home Assistant integrations, automations, dashboards, and backup locations remain operational
 * Checkmk host and service state, site health, and notification delivery remain operational
 * Proxmox system mail successfully leaves the host through the authenticated relay and the deferred queue remains empty
+* the knowledge-platform database accepts authenticated application connections and the vector extension remains available
+* the knowledge-platform API and ingestion workflow are validated independently once those application components enter service
 
 ## Maintenance orchestration
 
