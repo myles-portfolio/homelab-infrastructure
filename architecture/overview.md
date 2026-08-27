@@ -14,40 +14,47 @@ flowchart TB
     Clients[Client Devices<br/>PCs, phones, tablets, IoT clients]
     Proxmox[Proxmox VE Host]
 
-    subgraph CT101[CT 101 • File Services]
+    subgraph FileServices[File Services Container]
         Samba[Samba / CIFS]
         HABackups[HA Backup Share]
+        VaultReplica[Knowledge Vault Replica]
     end
 
-    subgraph CT102[CT 102 • Media]
+    subgraph Media[Media Container]
         Plex[Plex]
     end
 
-    subgraph VM103[VM 103 • Monitoring]
+    subgraph MetricsVM[Metrics and Visualization VM]
         Prometheus[Prometheus]
         Grafana[Grafana]
         NUTExporter[NUT Exporter]
     end
 
-    subgraph CT104[CT 104 • Password Manager]
+    subgraph Passwords[Password Manager Container]
         Vaultwarden[Vaultwarden]
     end
 
-    subgraph CT105[CT 105 • DNS / Filtering]
+    subgraph DNSFiltering[DNS / Filtering Container]
         PiHole[Pi-hole]
     end
 
-    subgraph VM106[VM 106 • Development]
+    subgraph Development[Development VM]
         DevWorkload[Development Workload]
-        Postgres[(PostgreSQL)]
+        DevPostgres[(PostgreSQL)]
     end
 
-    subgraph VM107[VM 107 • Home Assistant]
+    subgraph HomeAutomation[Home Assistant VM]
         HA[Home Assistant OS]
         HVAC[Presence-aware HVAC]
         Zigbee[Zigbee / IoT]
         Alarm[Alarm.com Integration]
         Backups[Backup Subsystem]
+    end
+
+    subgraph KnowledgePlatform[Personal Knowledge / RAG Container]
+        RAGAPI[Knowledge API]
+        Ingest[Markdown Ingestion]
+        RAGDB[(PostgreSQL + pgvector)]
     end
 
     Internet --> Clients
@@ -58,13 +65,14 @@ flowchart TB
     Clients --> HA
     Clients --> Samba
 
-    Proxmox --> CT101
-    Proxmox --> CT102
-    Proxmox --> VM103
-    Proxmox --> CT104
-    Proxmox --> CT105
-    Proxmox --> VM106
-    Proxmox --> VM107
+    Proxmox --> FileServices
+    Proxmox --> Media
+    Proxmox --> MetricsVM
+    Proxmox --> Passwords
+    Proxmox --> DNSFiltering
+    Proxmox --> Development
+    Proxmox --> HomeAutomation
+    Proxmox --> KnowledgePlatform
 
     PiHole --> Vaultwarden
     PiHole --> HA
@@ -80,7 +88,13 @@ flowchart TB
     Prometheus --> NUTExporter
     Grafana --> Prometheus
 
-    DevWorkload --> Postgres
+    DevWorkload --> DevPostgres
+
+    Clients --> VaultReplica
+    VaultReplica --> Ingest
+    Ingest --> RAGDB
+    RAGAPI --> RAGDB
+    RAGAPI --> Internet
 ```
 
 Operations-focused view showing guest roles, major service components, and selected dependency paths.
@@ -89,13 +103,13 @@ Operations-focused view showing guest roles, major service components, and selec
 
 | Symbol / Label | Meaning |
 |---|---|
-| `CT` | Linux container |
-| `VM` | Virtual machine |
+| Linux container | Lightweight isolated service workload |
+| Virtual machine | Full guest operating system workload |
 | Cylinder shape | Persistent data store |
 | Arrow | Primary dependency or service flow |
 | Nested nodes | Applications or services hosted inside a guest |
 
-The diagram is intentionally sanitized. Exact IP addresses, domains, ports, credentials, and other sensitive details are omitted.
+The diagram is intentionally sanitized. Exact IP addresses, domains, ports, credentials, guest IDs, and other sensitive details are omitted.
 
 ## Core infrastructure domains
 
@@ -105,7 +119,7 @@ Proxmox VE provides guest lifecycle management, snapshots, console access, stora
 
 ### File services
 
-A dedicated Linux container provides Samba-based network storage. It is also used as an external backup target for selected services, including Home Assistant.
+A dedicated Linux container provides Samba-based network storage. It is also used as an external backup target for selected services, including Home Assistant. A separate ZFS-backed dataset is mounted into this container for a synchronized replica of the private Obsidian knowledge vault. The replica is treated as protected source data rather than as application state.
 
 ### Monitoring
 
@@ -129,6 +143,14 @@ Home Assistant is treated as an appliance-style workload. Updates, backups, and 
 
 A dedicated Ubuntu VM hosts development tooling and PostgreSQL. Maintenance includes logical database backup, operating-system updates, database query validation, and QEMU Guest Agent checks.
 
+### Personal knowledge and RAG platform
+
+A dedicated Debian Linux container provides the backend runtime for a private-first personal knowledge system. The application architecture keeps the Obsidian Markdown vault authoritative while maintaining a rebuildable PostgreSQL and pgvector index for retrieval.
+
+The current backend foundation includes PostgreSQL and pgvector. Planned application services include Markdown ingestion, semantic retrieval, and a FastAPI-based query service. Embedding and language-model inference use external APIs during the initial implementation so the homelab does not need local GPU inference capacity.
+
+The synchronized vault replica and the derived RAG database are intentionally treated as separate recovery domains. The source Markdown should remain recoverable independently of the vector index.
+
 ## Operational design principles
 
 The environment follows several recurring principles:
@@ -139,6 +161,7 @@ The environment follows several recurring principles:
 4. **Prefer dedicated service accounts.** Machine-to-machine integrations use purpose-specific credentials where practical.
 5. **Keep public documentation sanitized.** The portfolio documents architecture and reasoning without publishing a useful attack map of the live environment.
 6. **Separate deterministic and dynamic automation.** Predictable routines are scheduled explicitly, while presence-aware automations handle deviations from the expected state.
+7. **Keep source data independent of derived indexes.** Search indexes, embeddings, and other derived data should be reproducible from protected source material rather than becoming the only copy of important information.
 
 ## Example control path: HVAC
 
@@ -174,6 +197,8 @@ Backup strategy is workload-specific:
 
 * Home Assistant keeps local backups and writes a second copy to dedicated Samba network storage.
 * PostgreSQL development data receives a logical database dump before higher-risk maintenance.
+* The private knowledge vault is synchronized to dedicated ZFS-backed homelab storage with file versioning enabled on the receiving side.
+* The RAG backend container requires scheduled guest backup and restore validation before it is considered production-ready.
 * Proxmox snapshots are used as temporary VM-level rollback protection when justified by the change.
 * Application data stored in Docker volumes is validated before container recreation.
 
