@@ -17,8 +17,7 @@ The following sections provide the main entry points into the homelab environmen
 7. **Automation case study:** [`home-assistant/hvac/README.md`](home-assistant/hvac/README.md) documents a presence-aware HVAC control system built in Home Assistant.
 8. **Change management:** [`change-management/README.md`](change-management/README.md) describes the lightweight change-control framework used throughout the lab.
 9. **Detailed change examples:** [`change-management/examples/`](change-management/examples/) contains deeper records showing problem analysis, implementation, validation, rollback, and lessons learned.
-10. **Planned work:** [`ROADMAP.md`](ROADMAP.md) tracks future infrastructure and security improvements.
-11. **Wiki:** [Homelab Infrastructure Wiki](https://github.com/myles-portfolio/homelab-infrastructure/wiki) contains the current sanitized change log, roadmap context, and operational notes.
+10. **Wiki:** [Homelab Infrastructure Wiki](https://github.com/myles-portfolio/homelab-infrastructure/wiki) contains the canonical sanitized change log, roadmap, and operational notes.
 
 ## What this repository demonstrates
 
@@ -257,7 +256,6 @@ proxmox/
 security/
   README.md
 
-ROADMAP.md
 SECURITY.md
 .gitignore
 ```
@@ -300,11 +298,11 @@ A few principles recur throughout this environment:
 
 The lab remains an active engineering environment. Planned work includes secure remote access, dedicated reverse-proxy isolation, certificate-expiration monitoring, automated backup restore testing, SSH hardening, enhanced UPS notifications, and additional observability depth.
 
-See [`ROADMAP.md`](ROADMAP.md) for the current backlog.
+See the [Wiki Roadmap](https://github.com/myles-portfolio/homelab-infrastructure/wiki/Roadmap) for the current priorities and planned work.
 
 ## Wiki
 
-The [project wiki](https://github.com/myles-portfolio/homelab-infrastructure/wiki) is the canonical location for sanitized operational history and lightweight planning context.
+The [project wiki](https://github.com/myles-portfolio/homelab-infrastructure/wiki) is the canonical location for sanitized operational history, roadmap planning, and lightweight operational context.
 
 Current wiki sections include:
 
