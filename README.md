@@ -19,6 +19,7 @@ If you are reviewing this repository as a portfolio, these are the best entry po
 9. **Detailed change examples:** [`change-management/examples/`](change-management/examples/) contains deeper records showing problem analysis, implementation, validation, rollback, and lessons learned.
 10. **History:** [`changelog/README.md`](changelog/README.md) shows how the environment has evolved over time.
 11. **Planned work:** [`ROADMAP.md`](ROADMAP.md) tracks future infrastructure and security improvements.
+12. **Wiki:** [Homelab Infrastructure Wiki](https://github.com/myles-portfolio/homelab-infrastructure/wiki) contains the current sanitized change log, roadmap context, and operational notes.
 
 ## What this repository demonstrates
 
@@ -140,7 +141,7 @@ Examples include:
 * Checkmk server, notification-path, and monitoring-recovery validation
 * QEMU Guest Agent deployment and validation
 * PostgreSQL logical backup before VM maintenance
-* Home Assistant local and external backup validation
+* Home Assistant local and external network backup validation
 * LVM thin-pool utilization checks before snapshot-heavy changes
 * Vaultwarden application image refresh in addition to guest OS maintenance
 * Pi-hole DNS validation after package maintenance
@@ -310,6 +311,19 @@ A few principles recur throughout this environment:
 The lab remains an active engineering environment. Planned work includes secure remote access, dedicated reverse-proxy isolation, certificate-expiration monitoring, automated backup restore testing, SSH hardening, enhanced UPS notifications, and additional observability depth.
 
 See [`ROADMAP.md`](ROADMAP.md) for the current backlog.
+
+## Wiki
+
+The [project wiki](https://github.com/myles-portfolio/homelab-infrastructure/wiki) holds operational context that changes more frequently than the repository's reference documentation.
+
+Current wiki sections include:
+
+* [Home](https://github.com/myles-portfolio/homelab-infrastructure/wiki)
+* [Change Log](https://github.com/myles-portfolio/homelab-infrastructure/wiki/Change-Log)
+* [Roadmap](https://github.com/myles-portfolio/homelab-infrastructure/wiki/Roadmap)
+* [Operations Notes](https://github.com/myles-portfolio/homelab-infrastructure/wiki/Operations-Notes)
+
+The repository remains the source for version-controlled architecture, configuration examples, runbooks, diagrams, and detailed change records. The wiki provides a lighter operational history and current planning context.
 
 ## Security and sanitization
 
