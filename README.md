@@ -17,9 +17,8 @@ The following sections provide the main entry points into the homelab environmen
 7. **Automation case study:** [`home-assistant/hvac/README.md`](home-assistant/hvac/README.md) documents a presence-aware HVAC control system built in Home Assistant.
 8. **Change management:** [`change-management/README.md`](change-management/README.md) describes the lightweight change-control framework used throughout the lab.
 9. **Detailed change examples:** [`change-management/examples/`](change-management/examples/) contains deeper records showing problem analysis, implementation, validation, rollback, and lessons learned.
-10. **History:** [`changelog/README.md`](changelog/README.md) shows how the environment has evolved over time.
-11. **Planned work:** [`ROADMAP.md`](ROADMAP.md) tracks future infrastructure and security improvements.
-12. **Wiki:** [Homelab Infrastructure Wiki](https://github.com/myles-portfolio/homelab-infrastructure/wiki) contains the current sanitized change log, roadmap context, and operational notes.
+10. **Planned work:** [`ROADMAP.md`](ROADMAP.md) tracks future infrastructure and security improvements.
+11. **Wiki:** [Homelab Infrastructure Wiki](https://github.com/myles-portfolio/homelab-infrastructure/wiki) contains the current sanitized change log, roadmap context, and operational notes.
 
 ## What this repository demonstrates
 
@@ -218,15 +217,6 @@ change-management/
     change-record.md
     maintenance-record.md
 
-changelog/
-  README.md
-  2026/
-    README.md
-    2026-08.md
-    2026-06.md
-    2026-05.md
-    2026-02.md
-
 home-assistant/
   hvac/
     README.md
@@ -314,7 +304,7 @@ See [`ROADMAP.md`](ROADMAP.md) for the current backlog.
 
 ## Wiki
 
-The [project wiki](https://github.com/myles-portfolio/homelab-infrastructure/wiki) holds operational context that changes more frequently than the repository's reference documentation.
+The [project wiki](https://github.com/myles-portfolio/homelab-infrastructure/wiki) is the canonical location for sanitized operational history and lightweight planning context.
 
 Current wiki sections include:
 
@@ -323,7 +313,7 @@ Current wiki sections include:
 * [Roadmap](https://github.com/myles-portfolio/homelab-infrastructure/wiki/Roadmap)
 * [Operations Notes](https://github.com/myles-portfolio/homelab-infrastructure/wiki/Operations-Notes)
 
-The repository remains the source for version-controlled architecture, configuration examples, runbooks, diagrams, and detailed change records. The wiki provides a lighter operational history and current planning context.
+The repository remains the source for version-controlled architecture, configuration examples, runbooks, diagrams, and detailed change-management case studies.
 
 ## Security and sanitization
 
