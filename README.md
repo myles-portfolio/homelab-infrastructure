@@ -6,7 +6,7 @@ This repository is a public portfolio of systems administration, infrastructure 
 
 ## Start here
 
-If you are reviewing this repository as a portfolio, these are the best entry points:
+The following sections provide the main entry points into the homelab environment and its supporting documentation:
 
 1. **Architecture:** [`architecture/overview.md`](architecture/overview.md) provides the sanitized system topology, workload roles, backup model, and design principles.
 2. **Systems operations:** [`proxmox/README.md`](proxmox/README.md) explains the maintenance model and links to the hypervisor, guest, and full-environment maintenance procedures.
