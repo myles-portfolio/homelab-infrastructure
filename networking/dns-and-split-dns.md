@@ -32,6 +32,36 @@ Pi-hole therefore serves two distinct functions:
 
 This makes DNS a dependency for several internally hosted services even when those applications themselves are healthy.
 
+## Trusted HTTPS administration
+
+The DNS administration interface is accessed through a locally resolved service name over trusted HTTPS rather than plain HTTP.
+
+Certificate issuance uses an ACME client with DNS validation. The DNS challenge is completed through a dedicated DNS-provider API credential, which allows certificate validation without exposing the administrative interface to the public internet.
+
+The implementation follows this pattern:
+
+```text
+Administrator browser
+        |
+        v
+Local DNS service name
+        |
+        v
+HTTPS management interface
+        |
+        +--> ACME certificate
+        |
+        +--> automated DNS challenge
+        |
+        +--> automated renewal and service reload
+```
+
+HTTP access is configured to redirect to HTTPS so routine administration consistently uses the encrypted interface.
+
+The certificate deployment workflow also performs a service reload after renewal so the newly issued certificate becomes active without manual intervention.
+
+API credentials, private keys, live service names, and provider-specific account details are intentionally omitted from this repository.
+
 ## Validation
 
 After DNS maintenance or configuration changes, validate both external and local resolution.
@@ -56,6 +86,15 @@ A successful DNS test should confirm:
 * external names resolve normally
 * expected local overrides return the intended private destination
 * dependent applications remain reachable through their normal service names
+
+For HTTPS administration changes, additionally confirm:
+
+* the management name resolves to the expected private destination
+* the browser trusts the served certificate
+* HTTP redirects to HTTPS
+* the certificate subject matches the management name
+* automated renewal completes successfully
+* the DNS service remains healthy after the certificate reload
 
 ## Failure isolation
 
@@ -85,8 +124,12 @@ Because local DNS is a dependency for management-friendly service names, adminis
 
 The public documentation intentionally does not publish that live recovery address.
 
+Certificate automation should also retain a recoverable local certificate path so a failed renewal does not remove the currently working certificate before a replacement is validated.
+
 ## Security considerations
 
 Local DNS overrides are configuration data rather than authentication controls. They should not be relied on to protect a service.
 
 Backend access should still be constrained appropriately through application authentication, host configuration, reverse-proxy policy, and network controls.
+
+DNS-provider API credentials used for certificate validation should be dedicated to the automation workflow, stored outside source control, and granted only the access required for DNS validation.
