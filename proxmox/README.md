@@ -73,9 +73,10 @@ Backup coverage and Checkmk onboarding remain required follow-up work before thi
 8. Validate application services after operating-system changes.
 9. Confirm Proxmox guest communication where QEMU Guest Agent is expected.
 10. Validate hypervisor system-mail delivery when Postfix or notification configuration changes.
-11. Remove temporary snapshots and installation media after validation.
-12. Confirm Checkmk returns to the expected final state before maintenance downtime is removed.
-13. Document deviations discovered during the maintenance window.
+11. Maintain trusted TLS on the Proxmox management interface and verify ACME renewal remains functional.
+12. Remove temporary snapshots and installation media after validation.
+13. Confirm Checkmk returns to the expected final state before maintenance downtime is removed.
+14. Document deviations discovered during the maintenance window.
 
 ## Application-level validation
 
@@ -89,6 +90,7 @@ Examples of service-specific validation include:
 * Home Assistant integrations, automations, dashboards, and backup locations remain operational
 * Checkmk host and service state, site health, and notification delivery remain operational
 * Proxmox system mail successfully leaves the host through the authenticated relay and the deferred queue remains empty
+* the Proxmox management interface presents a trusted certificate for its configured management FQDN
 * the knowledge-platform database accepts authenticated application connections and the vector extension remains available
 * the knowledge-platform API and ingestion workflow are validated independently once those application components enter service
 
@@ -100,6 +102,7 @@ Examples of service-specific validation include:
 ## Runbooks
 
 * [Proxmox VE hypervisor maintenance](runbooks/hypervisor-maintenance.md)
+* [Proxmox ACME TLS certificate](runbooks/acme-tls-certificate.md)
 * [Proxmox system mail relay](runbooks/system-mail-relay.md)
 * [File services container maintenance](runbooks/fileshare-container-maintenance.md)
 * [Monitoring VM maintenance](runbooks/monitoring-vm-maintenance.md)
