@@ -45,6 +45,16 @@ The dedicated VM provides workload isolation, an independent maintenance boundar
 
 Checkmk is not installed directly on the Proxmox host.
 
+### Web access security
+
+The Checkmk web interface is served through the system Apache front end and is protected with a publicly trusted ACME certificate.
+
+The certificate workflow uses DNS-based validation through the DNS provider API rather than HTTP-based validation. This allows certificate issuance and renewal without exposing a public HTTP challenge endpoint.
+
+The certificate client and DNS provider plug-in are isolated from the system Python environment. Automated renewal is scheduled through systemd using the certificate client environment that contains the required DNS plug-in. Renewal was validated with a full dry run, and a deploy hook reloads Apache after successful renewal so the new certificate is presented without manual intervention.
+
+Private hostnames, DNS API credentials, certificate account details, and other live topology values are intentionally omitted from this repository.
+
 ## Configuration structure
 
 The Checkmk folder hierarchy is designed as a configuration-inheritance model rather than only a visual filing system.
@@ -274,6 +284,8 @@ Public documentation must not include:
 * notification addresses or credentials
 * SMTP authentication material
 * password-manager contents
+* DNS API credentials
+* certificate private keys or account secrets
 
 Sanitized examples should preserve architecture and operating concepts without exposing live configuration.
 
@@ -293,5 +305,6 @@ The Checkmk evaluation will be considered successful when:
 * Checkmk and Prometheus responsibilities are clearly separated
 * notification design avoids duplicate alerts
 * notification delivery is validated end to end
+* the Checkmk web interface is protected by trusted HTTPS with validated automated certificate renewal
 
-Phases 1 through 6 demonstrate that the platform, guest, service, active-check, network, hypervisor, storage, hardware-monitoring, and notification-delivery models are operational. Remaining work is incremental monitoring expansion, alert-quality tuning, and deferred compatibility improvements.
+Phases 1 through 6 demonstrate that the platform, guest, service, active-check, network, hypervisor, storage, hardware-monitoring, and notification-delivery models are operational. Trusted HTTPS is also in place for the Checkmk web interface. Remaining work is incremental monitoring expansion, alert-quality tuning, and deferred compatibility improvements.
