@@ -35,6 +35,8 @@ A failure at any layer can produce a similar user symptom, such as "the site is 
 
 | Service | Primary dependencies | Validation focus |
 |---|---|---|
+| Reverse proxy | container health, Nginx, local DNS, wildcard certificate, backend reachability | host health, listeners, certificate trust, hostname routing, backend response |
+| Checkmk web access | local DNS, reverse proxy, wildcard certificate, Checkmk backend | DNS resolution, HTTPS response, proxy routing, application sign-in, active DNS check |
 | Vaultwarden | local DNS, reverse proxy, TLS certificate, Docker service, persistent application data | DNS resolution, HTTPS response, container health, client sign-in and sync |
 | Home Assistant | VM health, network path, reverse proxy where used, trusted-proxy configuration, integrations | UI access, integration availability, automation execution, backup access |
 | Pi-hole | container health, network path, upstream DNS | local resolution, upstream resolution, filtering behavior |
@@ -44,6 +46,35 @@ A failure at any layer can produce a similar user symptom, such as "the site is 
 | Samba file services | file-services container, smbd, storage path, permissions, network path | share listing, authenticated read/write, expected file persistence |
 | Home Assistant backups | Home Assistant backup subsystem, Samba share, dedicated service account, file-services container | backup completes locally and externally, backup file exists on share |
 | PostgreSQL development database | Development VM, PostgreSQL service, local storage | service status, successful application database query, logical backup |
+
+## Example: Checkmk through centralized ingress
+
+```text
+Client
+  |
+  v
+Local DNS
+  |
+  v
+Nginx reverse proxy
+  |
+  +--> wildcard TLS certificate
+  |
+  v
+Checkmk backend
+```
+
+Possible failure domains:
+
+* DNS name does not resolve to the proxy
+* duplicate or stale DNS data returns both proxy and backend addresses
+* reverse proxy is unavailable
+* certificate is invalid or expired
+* Nginx routes the hostname to the wrong backend
+* Checkmk backend is unavailable
+* the monitoring active check still expects the pre-migration address
+
+The first production migration through the dedicated proxy validated each of these layers independently and retained DNS rollback as the primary cutover recovery path.
 
 ## Example: Vaultwarden
 
@@ -121,8 +152,9 @@ When a service fails, use the dependency map to test from the outside inward:
 1. Can the client resolve the expected name?
 2. Can the client reach the expected network endpoint?
 3. Does the proxy or ingress layer respond?
-4. Does the backend application respond directly where appropriate?
-5. Are dependent services healthy?
-6. Does the user workflow succeed end to end?
+4. Is the certificate valid for the requested hostname?
+5. Does the backend application respond directly where appropriate?
+6. Are dependent services healthy?
+7. Does the user workflow succeed end to end?
 
 This approach reduces the tendency to restart the application before proving which layer is actually failing.
