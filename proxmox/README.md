@@ -144,3 +144,4 @@ Examples of service-specific validation include:
 * [Development VM maintenance](runbooks/development-vm-maintenance.md)
 * [Home Assistant VM maintenance](runbooks/home-assistant-vm-maintenance.md)
 * [Checkmk VM maintenance](runbooks/checkmk-vm-maintenance.md)
+* [Reverse proxy container maintenance](runbooks/reverse-proxy-container-maintenance.md)
