@@ -22,18 +22,40 @@ The design emphasizes reducing unnecessary exposure, separating credentials by f
 Several architectural choices reduce attack surface:
 
 * internal split DNS for selected services
-* reverse-proxy based HTTPS access
+* dedicated reverse-proxy based HTTPS access
+* centralized TLS termination for selected internal services
 * avoidance of unnecessary inbound WAN port forwarding
 * backend application ports kept private where practical
 * planned secure remote access through an overlay VPN rather than exposing administrative interfaces directly
 
 See [`../networking/`](../networking/) for the networking architecture that supports these controls.
 
+## Reverse proxy isolation
+
+A dedicated unprivileged Linux container now hosts the Nginx reverse proxy and wildcard TLS certificate used for selected internal services.
+
+This separates ingress and certificate lifecycle responsibilities from application workloads. The wildcard private key is kept on the proxy rather than distributed across every backend system.
+
+The proxy itself is hardened as a core infrastructure workload:
+
+* unprivileged container deployment
+* non-root administrative account
+* Ed25519 key based SSH authentication
+* password based SSH disabled after successful key-login validation
+* direct root password SSH disabled
+* unnecessary local services removed or disabled
+* Checkmk Linux agent registered with TLS
+* only required service listeners retained
+
+Backend migrations are staged so a DNS rollback can restore the previously validated direct path if a proxy change fails.
+
 ## Service accounts
 
 Dedicated service accounts are used where practical for non-interactive access.
 
 One example is the Home Assistant backup workflow, which uses a dedicated Samba account with access only to the backup share rather than reusing a general-purpose user account.
+
+Monitoring agent registration and certificate automation also use purpose-specific credentials rather than general administrator identities where supported.
 
 The intended pattern is:
 
@@ -67,6 +89,14 @@ Examples of information excluded from public configuration include:
 
 Where configuration examples require sensitive values, generic placeholders are used instead.
 
+## Wildcard certificate considerations
+
+A wildcard certificate simplifies TLS management but increases the importance of protecting its private key because that key can authenticate multiple service hostnames.
+
+For that reason, the current design keeps the wildcard certificate on the dedicated reverse proxy rather than copying it to each backend host.
+
+ACME validation uses a DNS-provider API credential stored outside source control. Automated renewal and certificate-expiration monitoring remain explicit lifecycle controls to complete.
+
 ## Reverse-proxy trust
 
 Home Assistant and similar services may need to trust a reverse proxy so forwarded client information can be processed correctly.
@@ -84,21 +114,25 @@ The environment uses multiple backup layers depending on the workload:
 * Home Assistant local backups
 * Home Assistant external network backup copies
 * PostgreSQL logical dumps
+* scheduled Proxmox guest backups
 * temporary Proxmox snapshots for selected maintenance windows
 * persistent Docker volumes for stateful container workloads
+
+The dedicated reverse-proxy container must be added to scheduled guest backup coverage because it now contains ingress configuration and certificate state used by multiple services.
 
 These mechanisms are not interchangeable. Each protects against a different failure mode.
 
 ## SSH hardening roadmap
 
-Current roadmap work includes hardening SSH administration by:
+SSH hardening has begun with the reverse-proxy workload and establishes the pattern for broader rollout:
 
-* disabling direct root password login
-* moving toward key-based authentication
-* preserving an emergency recovery path
-* validating console access before restricting remote authentication
+* disable direct root password login
+* use key-based authentication
+* preserve an emergency recovery path through the virtualization console
+* validate a second remote session before disabling password authentication
+* repeat the pattern on additional Linux workloads after service-specific validation
 
-This work is intentionally staged so security improvements do not create an avoidable lockout condition.
+The broader environment-wide rollout remains staged so security improvements do not create avoidable lockout conditions.
 
 ## Remote access roadmap
 
@@ -125,11 +159,11 @@ See [`../SECURITY.md`](../SECURITY.md) for publication-specific sanitization rul
 
 Current planned improvements include:
 
-* SSH key-based authentication
+* continue SSH key-based authentication rollout beyond the reverse proxy
 * secure remote access deployment
 * certificate-expiration monitoring
 * automated backup restore testing
-* further reverse-proxy isolation
+* reverse-proxy certificate renewal and reload automation validation
 * expanded service-health alerting
 
-These items are also tracked in [`../ROADMAP.md`](../ROADMAP.md).
+These items are also tracked in the project wiki roadmap.
