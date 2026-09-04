@@ -56,8 +56,12 @@ Validated coverage includes:
 * Proxmox host, ZFS, process, interface, and SMART monitoring
 * contact-group-based notification routing
 * HTML email notification delivery through Postfix and a managed SMTP relay
+* TLS-registered Linux agent monitoring for the dedicated Nginx reverse-proxy container
+* active DNS validation after migrating monitored web access through the reverse proxy
 
-A newly deployed personal knowledge and RAG backend has not yet been onboarded into Checkmk. Planned coverage includes Linux host health, filesystem capacity, PostgreSQL availability, and application-level service validation after the API and ingestion services enter production use.
+The personal knowledge and RAG backend is onboarded through the standard Linux agent and PostgreSQL plug-in workflow. Host, filesystem, database, and PostgreSQL health monitoring are active, while application-level API and ingestion checks remain future work until those services enter operation.
+
+The dedicated reverse-proxy container is also onboarded as core infrastructure. Monitoring validates host health independently from the applications routed through it. Certificate-expiration monitoring remains a planned addition so TLS lifecycle failures can be detected before they affect dependent services.
 
 See [`checkmk/README.md`](checkmk/README.md) for the Checkmk documentation index.
 
@@ -107,7 +111,9 @@ For Checkmk, validation may include:
 8. final mailbox receipt
 9. recovery behavior
 
-For database-backed application services, validation should also distinguish guest health from database availability and user-facing application health.
+For reverse-proxy changes, monitoring validation should also confirm that DNS active checks reflect the new ingress address and that stale host-level or local DNS records do not create duplicate answers.
+
+For database-backed application services, validation should distinguish guest health from database availability and user-facing application health.
 
 For Prometheus and Grafana, validation should distinguish metrics collection, exporter health, Prometheus target state, query behavior, and dashboard availability.
 
@@ -130,4 +136,5 @@ For Prometheus and Grafana, validation should distinguish metrics collection, ex
 
 * [`checkmk/README.md`](checkmk/README.md) for Checkmk-specific documentation
 * [`alerting-roadmap.md`](alerting-roadmap.md) for cross-platform alert ownership and future alerting work
+* [`../networking/reverse-proxy-pattern.md`](../networking/reverse-proxy-pattern.md) for the centralized ingress and TLS pattern
 * [`../proxmox/runbooks/monitoring-vm-maintenance.md`](../proxmox/runbooks/monitoring-vm-maintenance.md) for the existing Prometheus and Grafana VM maintenance workflow
