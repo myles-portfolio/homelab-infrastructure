@@ -4,7 +4,7 @@
 
 This section documents the sanitized networking patterns used by the homelab.
 
-The goal is to show how local name resolution, service access, reverse-proxy behavior, and internal dependencies are structured without publishing a complete live network map.
+The goal is to show how local name resolution, service access, reverse-proxy behavior, secure remote access, and internal dependencies are structured without publishing a complete live network map.
 
 ## Current design
 
@@ -20,11 +20,12 @@ Key networking functions include:
 - local-only service communication where practical
 - trusted-proxy handling in Home Assistant
 - no requirement for direct inbound WAN port forwarding for internally hosted web services documented here
+- planned Tailscale overlay networking for authenticated encrypted remote access
 
 ## Logical flow
 
 ```text
-Client device
+Local client
     |
     v
 Local DNS resolver
@@ -37,9 +38,26 @@ Local DNS resolver
     +--> public domain lookup --> upstream DNS
 ```
 
+Remote administrative access follows a separate path:
+
+```text
+Trusted remote device
+       |
+       v
+    Tailscale
+       |
+       v
+Dedicated subnet router
+       |
+       v
+Private homelab LAN
+```
+
+Selected private web applications may combine both patterns. Tailscale controls remote network reachability, while Nginx continues to provide the named HTTPS application path.
+
 ## Network and service flow
 
-The following diagram shows the sanitized relationship between client devices, DNS, reverse proxy, core services, and selected external integrations.
+The existing network diagram documents the local DNS and reverse-proxy relationships. It should be revised after the Tailscale subnet-router deployment is complete so the published diagram reflects the validated remote-access path rather than a planned design.
 
 ![Network and service flow](diagrams/network-service-flow.png)
 
@@ -52,8 +70,10 @@ The diagram is intentionally sanitized and does not expose the live environment'
 3. **Use split DNS deliberately.** Internal clients can resolve a service name to the proxy path without requiring hairpin WAN routing.
 4. **Centralize TLS without distributing private keys broadly.** The wildcard certificate remains on the dedicated proxy rather than being copied to every backend.
 5. **Avoid unnecessary WAN exposure.** Certificate automation and remote access should not require opening inbound ports when safer alternatives exist.
-6. **Validate DNS separately from application health.** A service can be running while name resolution is broken, and the reverse can also be true.
-7. **Document dependencies.** DNS, reverse proxy, authentication, certificate state, and backend services are separate failure domains.
+6. **Separate administrative access from application ingress.** Tailscale provides private remote reachability, while Nginx provides HTTPS application presentation where appropriate.
+7. **Keep backend-only services local.** Databases, monitoring collectors, exporters, and agents should not gain remote exposure without an explicit requirement.
+8. **Validate DNS separately from application health.** A service can be running while name resolution is broken, and the reverse can also be true.
+9. **Document dependencies.** DNS, remote access, reverse proxy, authentication, certificate state, and backend services are separate failure domains.
 
 ## Key components
 
@@ -61,7 +81,9 @@ The diagram is intentionally sanitized and does not expose the live environment'
 
 Pi-hole provides local DNS filtering and selected local DNS overrides. It is also a critical dependency for service names that rely on split DNS.
 
-Selected internal service names now resolve to the dedicated reverse proxy rather than directly to application backends.
+Selected internal service names resolve to the dedicated reverse proxy rather than directly to application backends.
+
+Pi-hole's DNS role remains a local infrastructure dependency. Its administrative interface can later be made remotely reachable through Tailscale without exposing DNS service to the WAN.
 
 See [`dns-and-split-dns.md`](dns-and-split-dns.md).
 
@@ -69,13 +91,34 @@ See [`dns-and-split-dns.md`](dns-and-split-dns.md).
 
 A dedicated unprivileged Linux container hosts Nginx as the centralized ingress and TLS termination layer for selected internal services.
 
-The proxy uses a wildcard certificate issued through ACME DNS challenge validation. Service migrations are staged rather than moved all at once. The infrastructure monitoring interface was used as the first production validation target, while additional administrative services remain planned for later migration.
+The proxy uses a wildcard certificate issued through ACME DNS challenge validation. Service migrations are staged rather than moved all at once. The infrastructure monitoring interface was used as the first production validation target.
+
+The reverse proxy is not the remote-administration gateway. Proxmox and SSH are intentionally excluded from the reverse-proxy publication model and will use the overlay network for remote access.
 
 See [`reverse-proxy-pattern.md`](reverse-proxy-pattern.md).
+
+### Tailscale subnet router
+
+Tailscale has been selected as the secure remote-access overlay.
+
+The target implementation uses a dedicated lightweight Linux container as the subnet router. It will advertise the required private network routes to authenticated Tailscale clients while remaining separate from the hypervisor, reverse proxy, DNS service, monitoring platform, and application workloads.
+
+The initial subnet router will share the existing Proxmox host. This means remote access depends on that host remaining online. A future second physical server or other independent always-on device could provide redundant subnet routing if higher availability becomes necessary.
 
 ### Home Assistant trusted proxy
 
 Home Assistant is configured to trust only the expected reverse-proxy sources when processing forwarded client information. Public documentation preserves the concept but omits the real address ranges.
+
+## Access classes
+
+Services are being classified by access requirement rather than by implementation technology.
+
+| Access class | Typical services | Intended path |
+|---|---|---|
+| Private administrative | Proxmox, SSH, development administration | Tailscale |
+| Private user-facing web | Checkmk, Grafana, Vaultwarden, Home Assistant, Software Asset Management, personal RAG application | Tailscale plus Nginx where named HTTPS is useful |
+| Backend infrastructure | PostgreSQL, Prometheus, exporters, monitoring agents | LAN only unless a specific remote requirement is documented |
+| Local data services | Samba and similar storage services | LAN by default, optional Tailscale access when justified |
 
 ## Dependency examples
 
@@ -83,6 +126,9 @@ Home Assistant is configured to trust only the expected reverse-proxy sources wh
 
 ```text
 Client
+  |
+  v
+Private network reachability
   |
   v
 Pi-hole / local DNS
@@ -102,10 +148,15 @@ If the reverse proxy fails, DNS may resolve correctly while HTTPS access fails.
 
 If the backend fails, DNS and TLS may still appear healthy even though the application is unavailable.
 
+For remote clients, failure of the Tailscale path is an additional independent failure domain.
+
 ### Vaultwarden access
 
 ```text
 Client
+  |
+  v
+Private network reachability
   |
   v
 Pi-hole / local DNS
@@ -117,7 +168,7 @@ Reverse proxy
 Vaultwarden
 ```
 
-The environment is being converged toward the dedicated proxy pattern so certificate and routing responsibilities are isolated from application workloads.
+The dedicated proxy isolates certificate and routing responsibilities from the application workload, while the overlay network can control remote reachability.
 
 ### Home Assistant reverse-proxy access
 
@@ -145,6 +196,7 @@ Networking changes should be validated at more than one layer:
 5. confirm the backend application responds
 6. confirm authentication and normal user workflows still function
 7. confirm monitoring checks reflect the new ingress path
+8. for remote-access changes, confirm the intended Tailscale route is available and unauthorized paths remain unavailable
 
 Before a DNS cutover, a client can force a single request to the new proxy address while preserving the production hostname. This validates certificate trust and proxy routing without changing normal resolution for other clients.
 
@@ -162,5 +214,6 @@ The public repository intentionally excludes:
 - wildcard private keys
 - firewall-rule inventories
 - exact trusted-proxy subnets
+- Tailscale device addresses, tailnet names, authentication keys, and detailed ACL policy
 
 The architecture remains useful as a portfolio artifact without exposing a detailed attack map.
