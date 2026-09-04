@@ -47,13 +47,32 @@ Checkmk is not installed directly on the Proxmox host.
 
 ### Web access security
 
-The Checkmk web interface is served through the system Apache front end and is protected with a publicly trusted ACME certificate.
+The Checkmk web interface is now accessed through the dedicated Nginx reverse proxy rather than using the Checkmk host as the client-facing TLS endpoint.
 
-The certificate workflow uses DNS-based validation through the DNS provider API rather than HTTP-based validation. This allows certificate issuance and renewal without exposing a public HTTP challenge endpoint.
+The client-facing path is:
 
-The certificate client and DNS provider plug-in are isolated from the system Python environment. Automated renewal is scheduled through systemd using the certificate client environment that contains the required DNS plug-in. Renewal was validated with a full dry run, and a deploy hook reloads Apache after successful renewal so the new certificate is presented without manual intervention.
+```text
+Client
+  |
+  v
+Local DNS
+  |
+  v
+Nginx reverse proxy
+  |
+  v
+Checkmk backend
+```
 
-Private hostnames, DNS API credentials, certificate account details, and other live topology values are intentionally omitted from this repository.
+The reverse proxy presents a publicly trusted wildcard certificate issued through ACME DNS challenge validation. The wildcard private key remains on the proxy rather than being distributed to the Checkmk host.
+
+The migration was staged. Before changing DNS, a client request was forced to the new proxy address while preserving the normal service hostname. This validated certificate trust, Nginx routing, and backend reachability without changing the normal path for other clients.
+
+After DNS cutover, the Checkmk active DNS service was updated to expect the proxy address. Troubleshooting identified a stale host-level DNS entry that caused both the old backend address and the new proxy address to be returned. The stale entry was removed, the resolver was reloaded, and both direct resolver tests and the Checkmk DNS service returned to the expected healthy state.
+
+Certificate renewal automation on the reverse proxy, automatic Nginx reload after successful renewal, and certificate-expiration monitoring remain explicit follow-up controls.
+
+Private hostnames, DNS API credentials, certificate account details, private keys, and other live topology values are intentionally omitted from this repository.
 
 ## Configuration structure
 
@@ -216,6 +235,22 @@ The initial notification rule intentionally remains broad while real alert volum
 
 See [`checkmk-notifications.md`](checkmk-notifications.md) for the sanitized delivery architecture and configuration model.
 
+### Incremental expansion: reverse-proxy monitoring
+
+Status: **Complete**
+
+A dedicated Nginx reverse-proxy container is now onboarded as core infrastructure through the standard semantic naming, classification, Linux agent, TLS registration, discovery, and activation workflow.
+
+Validated coverage includes:
+
+* host availability
+* CPU, memory, filesystem, interface, uptime, and systemd state
+* Checkmk agent TLS registration
+* application-path validation through the first proxied service
+* active DNS verification after the service hostname was moved from the backend address to the proxy address
+
+Certificate-expiration monitoring remains a planned enhancement.
+
 ## Relationship to Prometheus
 
 Prometheus and Checkmk currently coexist.
@@ -258,7 +293,7 @@ The baseline Checkmk notification design now includes:
 
 The preferred result remains one authoritative notification path per operational condition.
 
-Next alerting work should focus on observed behavior rather than adding rules immediately. Candidate tuning includes transient-state delays, periodic reminders for persistent critical conditions, routing by classification, acknowledgement behavior, and scheduled-downtime suppression.
+Next alerting work should focus on observed behavior rather than adding rules immediately. Candidate tuning includes transient-state delays, periodic reminders for persistent critical conditions, routing by classification, acknowledgement behavior, scheduled-downtime suppression, and certificate-expiration visibility.
 
 See [`alerting-roadmap.md`](alerting-roadmap.md) for the cross-platform ownership model and [`checkmk-notifications.md`](checkmk-notifications.md) for the notification-delivery implementation.
 
@@ -305,6 +340,7 @@ The Checkmk evaluation will be considered successful when:
 * Checkmk and Prometheus responsibilities are clearly separated
 * notification design avoids duplicate alerts
 * notification delivery is validated end to end
-* the Checkmk web interface is protected by trusted HTTPS with validated automated certificate renewal
+* the Checkmk web interface is protected by trusted HTTPS through the dedicated reverse proxy
+* the reverse-proxy host itself is monitored independently from the Checkmk backend
 
-Phases 1 through 6 demonstrate that the platform, guest, service, active-check, network, hypervisor, storage, hardware-monitoring, and notification-delivery models are operational. Trusted HTTPS is also in place for the Checkmk web interface. Remaining work is incremental monitoring expansion, alert-quality tuning, and deferred compatibility improvements.
+Phases 1 through 6 demonstrate that the platform, guest, service, active-check, network, hypervisor, storage, hardware-monitoring, and notification-delivery models are operational. Trusted HTTPS through centralized ingress is also in place for the Checkmk web interface. Remaining work is incremental monitoring expansion, certificate-expiration monitoring, alert-quality tuning, and deferred compatibility improvements.
