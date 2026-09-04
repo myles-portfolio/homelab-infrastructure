@@ -12,7 +12,7 @@ The design emphasizes reducing unnecessary exposure, separating credentials by f
 2. **Prefer named HTTPS access paths.** Reverse proxies and trusted certificates reduce direct backend exposure and improve service consistency.
 3. **Use dedicated service accounts.** Machine-to-machine workflows should avoid reusing interactive administrator accounts where practical.
 4. **Protect secrets from source control.** Credentials, API tokens, private keys, exact location data, and sensitive endpoints are never intended for the public repository.
-5. **Limit trust relationships.** Reverse-proxy trust, service permissions, and file-share access should be scoped to the smallest practical set of systems.
+5. **Limit trust relationships.** Reverse-proxy trust, service permissions, file-share access, and remote-access permissions should be scoped to the smallest practical set of systems.
 6. **Keep recovery controls independent.** Snapshots, application backups, database dumps, and external backup copies address different failure modes.
 7. **Harden remote administration.** SSH hardening and secure remote access are treated as explicit security work rather than default assumptions.
 8. **Validate after security changes.** Authentication, service access, and rollback paths must be tested after modifying security controls.
@@ -26,13 +26,13 @@ Several architectural choices reduce attack surface:
 * centralized TLS termination for selected internal services
 * avoidance of unnecessary inbound WAN port forwarding
 * backend application ports kept private where practical
-* planned secure remote access through an overlay VPN rather than exposing administrative interfaces directly
+* planned secure remote access through Tailscale rather than exposing administrative interfaces directly
 
 See [`../networking/`](../networking/) for the networking architecture that supports these controls.
 
 ## Reverse proxy isolation
 
-A dedicated unprivileged Linux container now hosts the Nginx reverse proxy and wildcard TLS certificate used for selected internal services.
+A dedicated unprivileged Linux container hosts the Nginx reverse proxy and wildcard TLS certificate used for selected internal services.
 
 This separates ingress and certificate lifecycle responsibilities from application workloads. The wildcard private key is kept on the proxy rather than distributed across every backend system.
 
@@ -48,6 +48,21 @@ The proxy itself is hardened as a core infrastructure workload:
 * only required service listeners retained
 
 Backend migrations are staged so a DNS rollback can restore the previously validated direct path if a proxy change fails.
+
+## Secure remote access
+
+Tailscale has been selected as the overlay VPN for remote administrative access.
+
+The target design separates remote network access from application ingress:
+
+* a dedicated lightweight Linux container will provide the subnet-router role
+* Proxmox, SSH, and similar administrative interfaces will remain private rather than being published through the reverse proxy
+* selected private web applications may continue to use Nginx for named HTTPS access while remote reachability is controlled through Tailscale
+* backend services such as PostgreSQL, Prometheus, exporters, and monitoring agents remain local unless an explicit remote requirement exists
+
+The initial subnet router will run as a dedicated Proxmox guest on the existing hypervisor. It will not share the reverse-proxy, DNS, monitoring, or application roles. This limits coupling and makes the remote-access function easier to monitor, back up, and replace independently.
+
+A future second physical host or other always-on infrastructure device could provide a redundant subnet router if remote access availability becomes more important.
 
 ## Service accounts
 
@@ -118,7 +133,7 @@ The environment uses multiple backup layers depending on the workload:
 * temporary Proxmox snapshots for selected maintenance windows
 * persistent Docker volumes for stateful container workloads
 
-The dedicated reverse-proxy container must be added to scheduled guest backup coverage because it now contains ingress configuration and certificate state used by multiple services.
+The reverse-proxy container and personal knowledge backend are now included in workload-appropriate scheduled guest backup policies. Backup creation and controlled restore validation remain separate recovery checks.
 
 These mechanisms are not interchangeable. Each protects against a different failure mode.
 
@@ -134,17 +149,6 @@ SSH hardening has begun with the reverse-proxy workload and establishes the patt
 
 The broader environment-wide rollout remains staged so security improvements do not create avoidable lockout conditions.
 
-## Remote access roadmap
-
-Secure remote access is planned through an overlay VPN approach rather than exposing Proxmox, SSH, or internal web applications directly to the internet.
-
-The goals are:
-
-* authenticated encrypted remote access
-* minimal WAN exposure
-* centralized remote-access control
-* reduced dependence on router port forwarding
-
 ## Public documentation model
 
 The repository itself is treated as part of the security model.
@@ -159,8 +163,8 @@ See [`../SECURITY.md`](../SECURITY.md) for publication-specific sanitization rul
 
 Current planned improvements include:
 
+* deploy the dedicated Tailscale subnet router and validate remote access controls
 * continue SSH key-based authentication rollout beyond the reverse proxy
-* secure remote access deployment
 * certificate-expiration monitoring
 * automated backup restore testing
 * reverse-proxy certificate renewal and reload automation validation
