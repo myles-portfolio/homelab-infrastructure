@@ -30,7 +30,9 @@ Current job groupings include:
 * file services
 * development workloads
 
-New infrastructure workloads are not considered fully operational until their backup scope is reviewed and added to the appropriate scheduled job. The dedicated reverse-proxy container is the current example: the service is operational and monitored, but scheduled guest backup coverage and backup validation remain required follow-up work.
+New infrastructure workloads are not considered fully operational until their backup scope is reviewed and added to the appropriate scheduled job.
+
+The reverse-proxy container is now included in the core infrastructure backup policy. The personal knowledge and RAG backend is now included in the development backup policy. In both cases, successful scheduled backup creation and controlled restore validation remain separate validation requirements.
 
 Snapshot mode is used where it works reliably. The file-services container uses Stop mode because repeated Snapshot-mode attempts stalled during snapshot creation, while Stop mode completed successfully and returned the service to normal operation.
 
@@ -102,7 +104,7 @@ Its recovery scope includes:
 
 The DNS provider API credential and private key material are not stored in the public repository. Recovery documentation should preserve the process for re-establishing those secrets without embedding them in source control.
 
-Until scheduled guest backup coverage is enabled and validated, the reverse proxy should retain a documented DNS rollback path to the previously validated backend service addresses.
+The guest is now covered by the core infrastructure scheduled backup policy. A documented DNS rollback path remains useful because it provides service continuity if the reverse proxy fails even when a recoverable backup exists.
 
 ### Network storage
 
@@ -229,11 +231,11 @@ Restoring an entire VM when only a database needs recovery creates unnecessary i
 
 ## Current improvement areas
 
-Workload-specific scheduled Proxmox backup coverage is in place for the established guest inventory, and the restore workflow has been validated successfully with a critical monitoring VM.
+Workload-specific scheduled Proxmox backup coverage is in place for the established guest inventory, including the reverse proxy and personal knowledge backend. The restore workflow has been validated successfully with a critical monitoring VM.
 
 Additional planned work includes:
 
-* add the newly deployed reverse-proxy container to the core infrastructure backup job and validate successful backup creation
+* validate successful scheduled backup creation for newly added workloads
 * periodically repeat guest restore tests for critical workloads
 * identify external or bind-mounted datasets requiring separate backup coverage
 * add Checkmk-native site backups as an application-level recovery layer alongside VM-level protection
