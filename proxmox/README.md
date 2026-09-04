@@ -24,15 +24,16 @@ This prevents guests from being omitted simply because they were missing from an
 | Guest type | Role | Maintenance focus |
 |---|---|---|
 | LXC | File services | OS packages, file-sharing services, client validation |
-| LXC | Media server | Preserve intentional stopped state when applicable |
 | VM | Metrics and visualization | Ubuntu, Docker, Prometheus, Grafana, NUT exporter, QEMU Guest Agent |
 | LXC | Password manager | OS packages plus Vaultwarden image refresh, recreation, and client validation |
 | LXC | DNS / filtering | OS packages plus Pi-hole application and DNS validation |
-| VM | Development workload | Ubuntu, PostgreSQL, application database backup and query validation |
+| VM | Software Asset Management development workload | Ubuntu, PostgreSQL, application database backup, application validation, query validation |
 | VM | Home automation | Home Assistant-specific maintenance, backup, and integration validation |
 | VM | Infrastructure monitoring | Debian, Checkmk site health, notification transport, monitoring recovery |
 | LXC | Personal knowledge / RAG backend | Debian, PostgreSQL, pgvector, ingestion service, API health, database connectivity |
 | LXC | Reverse proxy / TLS ingress | Debian, Nginx, certificate lifecycle, backend routing, SSH hardening, Checkmk agent health |
+
+The former media-server container has been retired from the active inventory. Media hosting is deferred until dedicated storage, such as a NAS, is available.
 
 The public inventory intentionally omits live Proxmox guest IDs, hostnames, and addresses. Operational procedures use placeholders such as `<vmid>` and `<ctid>` where an identifier is required.
 
@@ -62,7 +63,9 @@ Current infrastructure components:
 
 The source knowledge vault is stored separately on ZFS-backed storage and synchronized through the file-services workload. The RAG database is derived state and should remain rebuildable from protected source Markdown. Exact addresses, database credentials, vault paths, and guest identifiers are intentionally excluded from this repository.
 
-Checkmk onboarding is complete for host-level and PostgreSQL monitoring. Current coverage includes availability, CPU, memory, filesystem, systemd state, PostgreSQL instance health, connection metrics, database size and statistics, locks, process counts, query duration, bloat, analyze, and vacuum state. Notification routing and delivery have also been validated. Application-specific RAG API and ingestion checks remain future work until those services enter operation. Backup coverage remains a separate follow-up requirement before this workload is treated as production-ready.
+Checkmk onboarding is complete for host-level and PostgreSQL monitoring. Current coverage includes availability, CPU, memory, filesystem, systemd state, PostgreSQL instance health, connection metrics, database size and statistics, locks, process counts, query duration, bloat, analyze, and vacuum state. Notification routing and delivery have also been validated. Application-specific RAG API and ingestion checks remain future work until those services enter operation.
+
+The RAG backend is now included in the scheduled development backup policy. Successful backup creation and controlled restore validation remain separate recovery-validation tasks.
 
 ### Reverse proxy / TLS ingress
 
@@ -89,7 +92,15 @@ Current implementation characteristics:
 * Checkmk Linux agent with TLS registration
 * service migration performed incrementally, with the monitoring web interface used as the first production validation target
 
-The reverse proxy is treated as core infrastructure because multiple service access paths will depend on it as migrations continue. Scheduled guest backup coverage and certificate lifecycle monitoring remain follow-up requirements.
+The reverse proxy is treated as core infrastructure because multiple service access paths depend on it. It is now included in the core infrastructure scheduled backup policy. Certificate lifecycle monitoring and backup restore validation remain follow-up requirements.
+
+### Secure remote access direction
+
+Administrative remote access is being separated from application ingress. The target design uses Tailscale as an overlay VPN with a dedicated lightweight Linux subnet-router container.
+
+The planned subnet router will run as a separate Proxmox guest rather than on the hypervisor, reverse proxy, Pi-hole, or monitoring platform. This preserves separation of duties while providing encrypted private access to administrative services.
+
+Proxmox management itself is not planned for reverse-proxy publication. Remote administrative reachability will be provided through the overlay network instead.
 
 ## Maintenance principles
 
@@ -118,6 +129,7 @@ Examples of service-specific validation include:
 * password manager web and extension access succeeds
 * monitoring targets are healthy and dashboards load
 * PostgreSQL accepts application database queries after maintenance
+* Software Asset Management application workflows remain functional after maintenance
 * Home Assistant integrations, automations, dashboards, and backup locations remain operational
 * Checkmk host and service state, site health, and notification delivery remain operational
 * Proxmox system mail successfully leaves the host through the authenticated relay and the deferred queue remains empty
