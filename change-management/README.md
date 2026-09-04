@@ -35,6 +35,7 @@ Examples:
 * adding presence-aware HVAC control
 * creating a new network backup path
 * introducing a new VM or container role
+* centralizing reverse-proxy and TLS responsibilities for multiple services
 
 ### Emergency
 
@@ -102,5 +103,12 @@ Document outcome
 * [Maintenance record template](templates/maintenance-record.md)
 
 ## Examples in this repository
+
+Detailed examples include:
+
+* [Split DNS and Vaultwarden HTTPS](examples/split-dns-vaultwarden-https.md)
+* [Dedicated Nginx reverse proxy and wildcard TLS](examples/dedicated-nginx-reverse-proxy.md)
+* [Home Assistant rebuild](examples/home-assistant-rebuild.md)
+* [Monitoring VM maintenance](examples/monitoring-vm-maintenance.md)
 
 The runbooks under `proxmox/runbooks/` demonstrate the same operating model in practice. They separate pre-checks, implementation, validation, cleanup, and rollback rather than treating a package-manager success message as proof of service health.
