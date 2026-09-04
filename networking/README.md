@@ -14,7 +14,8 @@ Key networking functions include:
 
 - local DNS and filtering through Pi-hole
 - split DNS for internal service names
-- reverse-proxy based HTTPS access for selected services
+- a dedicated Nginx reverse proxy for centralized HTTPS termination and hostname-based routing
+- wildcard TLS for selected internal service names
 - Samba/CIFS for network storage
 - local-only service communication where practical
 - trusted-proxy handling in Home Assistant
@@ -28,17 +29,12 @@ Client device
     v
 Local DNS resolver
     |
-    +--> internal service name --> private service path
+    +--> internal service name --> reverse proxy
+    |                                 |
+    |                                 v
+    |                            backend service
     |
     +--> public domain lookup --> upstream DNS
-
-Internal web service request
-    |
-    v
-Reverse proxy
-    |
-    v
-Backend application
 ```
 
 ## Network and service flow
@@ -52,11 +48,12 @@ The diagram is intentionally sanitized and does not expose the live environment'
 ## Design principles
 
 1. **Name services by function rather than port number.** Clients should access services through stable names where practical.
-2. **Keep backend services private.** Reverse proxies provide the user-facing HTTPS path while backend ports remain internal.
-3. **Use split DNS deliberately.** Internal clients can resolve a service name to its private path without requiring hairpin WAN routing.
-4. **Avoid unnecessary WAN exposure.** Certificate automation and remote access should not require opening inbound ports when safer alternatives exist.
-5. **Validate DNS separately from application health.** A service can be running while name resolution is broken, and the reverse can also be true.
-6. **Document dependencies.** DNS, reverse proxy, authentication, and backend services are separate failure domains.
+2. **Keep backend services private.** The reverse proxy provides the user-facing HTTPS path while backend ports remain internal.
+3. **Use split DNS deliberately.** Internal clients can resolve a service name to the proxy path without requiring hairpin WAN routing.
+4. **Centralize TLS without distributing private keys broadly.** The wildcard certificate remains on the dedicated proxy rather than being copied to every backend.
+5. **Avoid unnecessary WAN exposure.** Certificate automation and remote access should not require opening inbound ports when safer alternatives exist.
+6. **Validate DNS separately from application health.** A service can be running while name resolution is broken, and the reverse can also be true.
+7. **Document dependencies.** DNS, reverse proxy, authentication, certificate state, and backend services are separate failure domains.
 
 ## Key components
 
@@ -64,13 +61,15 @@ The diagram is intentionally sanitized and does not expose the live environment'
 
 Pi-hole provides local DNS filtering and selected local DNS overrides. It is also a critical dependency for service names that rely on split DNS.
 
+Selected internal service names now resolve to the dedicated reverse proxy rather than directly to application backends.
+
 See [`dns-and-split-dns.md`](dns-and-split-dns.md).
 
 ### Reverse proxy
 
-A reverse proxy provides HTTPS termination and routes named services to internal backends. Vaultwarden currently uses this pattern.
+A dedicated unprivileged Linux container hosts Nginx as the centralized ingress and TLS termination layer for selected internal services.
 
-A dedicated reverse-proxy container remains a planned architecture improvement so ingress can be isolated from individual application containers.
+The proxy uses a wildcard certificate issued through ACME DNS challenge validation. Service migrations are staged rather than moved all at once. The infrastructure monitoring interface was used as the first production validation target, while additional administrative services remain planned for later migration.
 
 See [`reverse-proxy-pattern.md`](reverse-proxy-pattern.md).
 
@@ -79,6 +78,29 @@ See [`reverse-proxy-pattern.md`](reverse-proxy-pattern.md).
 Home Assistant is configured to trust only the expected reverse-proxy sources when processing forwarded client information. Public documentation preserves the concept but omits the real address ranges.
 
 ## Dependency examples
+
+### Monitoring web access
+
+```text
+Client
+  |
+  v
+Pi-hole / local DNS
+  |
+  v
+Nginx reverse proxy
+  |
+  +--> wildcard TLS certificate
+  |
+  v
+Monitoring backend
+```
+
+If DNS fails, the backend may remain healthy while the service name stops resolving.
+
+If the reverse proxy fails, DNS may resolve correctly while HTTPS access fails.
+
+If the backend fails, DNS and TLS may still appear healthy even though the application is unavailable.
 
 ### Vaultwarden access
 
@@ -95,11 +117,7 @@ Reverse proxy
 Vaultwarden
 ```
 
-If DNS fails, the backend may remain healthy while the service name stops resolving.
-
-If the reverse proxy fails, DNS may resolve correctly while HTTPS access fails.
-
-If Vaultwarden fails, DNS and TLS may still appear healthy even though the application is unavailable.
+The environment is being converged toward the dedicated proxy pattern so certificate and routing responsibilities are isolated from application workloads.
 
 ### Home Assistant reverse-proxy access
 
@@ -123,10 +141,14 @@ Networking changes should be validated at more than one layer:
 1. confirm expected DNS resolution
 2. confirm TCP connectivity to the service path
 3. confirm TLS behavior where HTTPS is used
-4. confirm the backend application responds
-5. confirm authentication and normal user workflows still function
+4. confirm the reverse proxy selects the intended backend
+5. confirm the backend application responds
+6. confirm authentication and normal user workflows still function
+7. confirm monitoring checks reflect the new ingress path
 
-This layered validation helps distinguish DNS, proxy, certificate, network, and application failures.
+Before a DNS cutover, a client can force a single request to the new proxy address while preserving the production hostname. This validates certificate trust and proxy routing without changing normal resolution for other clients.
+
+After DNS changes, direct resolver tests should confirm that stale host-level or duplicate local records are not returning an obsolete backend address alongside the proxy address.
 
 ## Security and sanitization
 
@@ -137,6 +159,7 @@ The public repository intentionally excludes:
 - router management details
 - API credentials
 - certificate-provider tokens
+- wildcard private keys
 - firewall-rule inventories
 - exact trusted-proxy subnets
 
