@@ -32,6 +32,7 @@ This prevents guests from being omitted simply because they were missing from an
 | VM | Home automation | Home Assistant-specific maintenance, backup, and integration validation |
 | VM | Infrastructure monitoring | Debian, Checkmk site health, notification transport, monitoring recovery |
 | LXC | Personal knowledge / RAG backend | Debian, PostgreSQL, pgvector, ingestion service, API health, database connectivity |
+| LXC | Reverse proxy / TLS ingress | Debian, Nginx, certificate lifecycle, backend routing, SSH hardening, Checkmk agent health |
 
 The public inventory intentionally omits live Proxmox guest IDs, hostnames, and addresses. Operational procedures use placeholders such as `<vmid>` and `<ctid>` where an identifier is required.
 
@@ -63,6 +64,33 @@ The source knowledge vault is stored separately on ZFS-backed storage and synchr
 
 Checkmk onboarding is complete for host-level and PostgreSQL monitoring. Current coverage includes availability, CPU, memory, filesystem, systemd state, PostgreSQL instance health, connection metrics, database size and statistics, locks, process counts, query duration, bloat, analyze, and vacuum state. Notification routing and delivery have also been validated. Application-specific RAG API and ingestion checks remain future work until those services enter operation. Backup coverage remains a separate follow-up requirement before this workload is treated as production-ready.
 
+### Reverse proxy / TLS ingress
+
+A dedicated unprivileged Debian 13 container now hosts Nginx as the central reverse proxy and TLS termination layer for selected internal services.
+
+Sanitized starting allocation:
+
+```text
+vCPU: 1
+RAM: 1 GB
+Swap: 512 MB
+Root disk: 8 GB
+Autostart: enabled
+```
+
+Current implementation characteristics:
+
+* Nginx reverse proxy with hostname based routing
+* wildcard certificate issued through ACME DNS challenge validation
+* non-root administrative account with Ed25519 key based SSH authentication
+* direct root password SSH disabled
+* password based SSH disabled after validating a second key-authenticated session
+* unnecessary local mail service removed from the workload
+* Checkmk Linux agent with TLS registration
+* service migration performed incrementally, with the monitoring web interface used as the first production validation target
+
+The reverse proxy is treated as core infrastructure because multiple service access paths will depend on it as migrations continue. Scheduled guest backup coverage and certificate lifecycle monitoring remain follow-up requirements.
+
 ## Maintenance principles
 
 1. Schedule Checkmk downtime for every monitored host that will be intentionally disrupted.
@@ -76,9 +104,10 @@ Checkmk onboarding is complete for host-level and PostgreSQL monitoring. Current
 9. Confirm Proxmox guest communication where QEMU Guest Agent is expected.
 10. Validate hypervisor system-mail delivery when Postfix or notification configuration changes.
 11. Maintain trusted TLS on the Proxmox management interface and verify ACME renewal remains functional.
-12. Remove temporary snapshots and installation media after validation.
-13. Confirm Checkmk returns to the expected final state before maintenance downtime is removed.
-14. Document deviations discovered during the maintenance window.
+12. Validate reverse-proxy routing, certificate trust, and dependent service access after Nginx maintenance.
+13. Remove temporary snapshots and installation media after validation.
+14. Confirm Checkmk returns to the expected final state before maintenance downtime is removed.
+15. Document deviations discovered during the maintenance window.
 
 ## Application-level validation
 
@@ -96,6 +125,7 @@ Examples of service-specific validation include:
 * the knowledge-platform database accepts authenticated application connections and the vector extension remains available
 * the knowledge-platform PostgreSQL monitoring remains healthy after maintenance
 * the knowledge-platform API and ingestion workflow are validated independently once those application components enter service
+* the reverse proxy listens on expected ports, presents the expected trusted certificate, routes each configured hostname to the correct backend, and remains green in Checkmk
 
 ## Maintenance orchestration
 
