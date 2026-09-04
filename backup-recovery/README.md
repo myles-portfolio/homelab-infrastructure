@@ -30,6 +30,8 @@ Current job groupings include:
 * file services
 * development workloads
 
+New infrastructure workloads are not considered fully operational until their backup scope is reviewed and added to the appropriate scheduled job. The dedicated reverse-proxy container is the current example: the service is operational and monitored, but scheduled guest backup coverage and backup validation remain required follow-up work.
+
 Snapshot mode is used where it works reliably. The file-services container uses Stop mode because repeated Snapshot-mode attempts stalled during snapshot creation, while Stop mode completed successfully and returned the service to normal operation.
 
 ZSTD compression is used for scheduled guest backups. Retention preserves recent, daily, weekly, and monthly recovery points rather than only the newest copy.
@@ -85,6 +87,22 @@ Stateful containerized applications depend on persistent volumes or bind-mounted
 Container recreation is therefore treated separately from data removal. Refreshing an image and recreating a Compose service should not delete persistent application data unless a recovery procedure explicitly requires it.
 
 For workloads such as Vaultwarden, the running container is replaceable while the persistent application state is the critical recovery asset.
+
+### Reverse-proxy configuration and certificate state
+
+The dedicated reverse proxy is a core infrastructure workload because several internal web services can depend on its routing and TLS configuration.
+
+Its recovery scope includes:
+
+* Nginx site configuration
+* ACME client configuration
+* issued certificate state
+* renewal configuration and deploy hooks once implemented
+* SSH and operating-system hardening required to administer the workload
+
+The DNS provider API credential and private key material are not stored in the public repository. Recovery documentation should preserve the process for re-establishing those secrets without embedding them in source control.
+
+Until scheduled guest backup coverage is enabled and validated, the reverse proxy should retain a documented DNS rollback path to the previously validated backend service addresses.
 
 ### Network storage
 
@@ -170,6 +188,7 @@ Other recovery-layer validation examples include:
 * Proxmox snapshot is visible before the change and intentionally removed afterward
 * Docker services return with persistent application state intact after recreation
 * Samba backup destination accepts an authenticated write
+* reverse-proxy configuration and certificate state are present after a controlled guest restore
 
 ## Recovery decision model
 
@@ -206,17 +225,19 @@ Restoring an entire VM when only a database needs recovery creates unnecessary i
 7. **Remove temporary rollback and restore-test artifacts after validation.**
 8. **Preserve persistent application data when recreating containers.**
 9. **Use the least disruptive recovery method that solves the problem.**
+10. **Review backup coverage whenever a new infrastructure guest is deployed.**
 
 ## Current improvement areas
 
-Workload-specific scheduled Proxmox backup coverage is now in place for the active guest inventory, and the restore workflow has been validated successfully with a critical monitoring VM.
+Workload-specific scheduled Proxmox backup coverage is in place for the established guest inventory, and the restore workflow has been validated successfully with a critical monitoring VM.
 
 Additional planned work includes:
 
+* add the newly deployed reverse-proxy container to the core infrastructure backup job and validate successful backup creation
 * periodically repeat guest restore tests for critical workloads
 * identify external or bind-mounted datasets requiring separate backup coverage
 * add Checkmk-native site backups as an application-level recovery layer alongside VM-level protection
 * define restore-test frequency for critical workloads
 * add an independent backup destination when hardware or budget permits
 
-See [`../ROADMAP.md`](../ROADMAP.md) for the broader infrastructure backlog.
+See the project wiki roadmap for the broader infrastructure backlog.
