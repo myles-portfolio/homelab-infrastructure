@@ -38,6 +38,11 @@ flowchart TB
         PiHole[Pi-hole]
     end
 
+    subgraph ReverseProxy[Reverse Proxy Container]
+        Nginx[Nginx]
+        WildcardTLS[Wildcard TLS Certificate]
+    end
+
     subgraph Development[Development VM]
         DevWorkload[Development Workload]
         DevPostgres[(PostgreSQL)]
@@ -60,9 +65,11 @@ flowchart TB
     Internet --> Clients
 
     Clients --> PiHole
-    Clients --> Vaultwarden
-    Clients --> Grafana
-    Clients --> HA
+    PiHole --> ReverseProxy
+    ReverseProxy --> Vaultwarden
+    ReverseProxy --> Grafana
+    ReverseProxy --> HA
+    ReverseProxy --> Checkmk[Infrastructure Monitoring Backend]
     Clients --> Samba
 
     Proxmox --> FileServices
@@ -70,13 +77,10 @@ flowchart TB
     Proxmox --> MetricsVM
     Proxmox --> Passwords
     Proxmox --> DNSFiltering
+    Proxmox --> ReverseProxy
     Proxmox --> Development
     Proxmox --> HomeAutomation
     Proxmox --> KnowledgePlatform
-
-    PiHole --> Vaultwarden
-    PiHole --> HA
-    PiHole --> Grafana
 
     HA --> HVAC
     HA --> Zigbee
@@ -125,6 +129,8 @@ A dedicated Linux container provides Samba-based network storage. It is also use
 
 A dedicated Ubuntu VM hosts a Docker Compose monitoring stack consisting of Prometheus, Grafana, and a NUT exporter. Monitoring application health is validated independently of operating-system package state.
 
+Checkmk runs separately as the primary infrastructure and service-state monitoring platform. Its web interface is now one of the first internal services migrated behind the dedicated reverse proxy.
+
 ### Identity and secrets
 
 A dedicated container hosts a self-managed password manager. Application container updates are treated separately from guest operating-system maintenance.
@@ -132,6 +138,16 @@ A dedicated container hosts a self-managed password manager. Application contain
 ### DNS and filtering
 
 A dedicated container provides local DNS and filtering services. Service validation includes resolution tests rather than package status alone.
+
+Local DNS also directs selected internal service names to the dedicated reverse proxy rather than directly to backend applications.
+
+### Reverse proxy and TLS ingress
+
+A dedicated unprivileged Linux container now hosts Nginx as the centralized reverse proxy and TLS termination layer for selected internal web services.
+
+The design uses a wildcard certificate issued through ACME DNS challenge validation. The certificate and its private key remain on the proxy rather than being distributed to every backend application. DNS provider credentials are stored outside source control.
+
+Service migration is intentionally incremental. Monitoring was migrated first and validated end to end before additional administrative services are moved behind the proxy. The virtualization management interface is planned as a later migration after additional soak time.
 
 ### Home automation
 
@@ -162,6 +178,7 @@ The environment follows several recurring principles:
 5. **Keep public documentation sanitized.** The portfolio documents architecture and reasoning without publishing a useful attack map of the live environment.
 6. **Separate deterministic and dynamic automation.** Predictable routines are scheduled explicitly, while presence-aware automations handle deviations from the expected state.
 7. **Keep source data independent of derived indexes.** Search indexes, embeddings, and other derived data should be reproducible from protected source material rather than becoming the only copy of important information.
+8. **Centralize ingress deliberately.** Reverse proxy and certificate lifecycle responsibilities are isolated from backend applications so service identity, TLS, and routing can evolve independently.
 
 ## Example control path: HVAC
 
@@ -199,6 +216,7 @@ Backup strategy is workload-specific:
 * PostgreSQL development data receives a logical database dump before higher-risk maintenance.
 * The private knowledge vault is synchronized to dedicated ZFS-backed homelab storage with file versioning enabled on the receiving side.
 * The RAG backend container requires scheduled guest backup and restore validation before it is considered production-ready.
+* The reverse-proxy container is a new core-infrastructure workload and must be added to scheduled guest backup coverage, followed by backup validation.
 * Proxmox snapshots are used as temporary VM-level rollback protection when justified by the change.
 * Application data stored in Docker volumes is validated before container recreation.
 
