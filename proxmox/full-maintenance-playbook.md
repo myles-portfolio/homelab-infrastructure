@@ -48,6 +48,7 @@ Before disruptive work:
 
 * confirm scheduled backups have been completing
 * confirm the backup target is available
+* verify newly introduced core workloads, including the reverse proxy, are included in the appropriate backup job before relying on them during maintenance
 * take temporary snapshots where the individual runbook calls for them
 * create application-native backups when required, such as database dumps or Home Assistant backups
 * confirm enough storage headroom exists for temporary snapshots or update writes
@@ -63,6 +64,7 @@ When the hypervisor will reboot, this normally includes:
 * the hypervisor host object
 * every running monitored VM
 * every running monitored container
+* the dedicated reverse-proxy host
 * separately represented dependent services that will intentionally become unavailable
 
 Schedule downtime before the first reboot, shutdown, service restart, or other disruptive action. Include time for validation and rollback.
@@ -86,6 +88,8 @@ apt-mark showhold
 
 For each guest, record the baseline required by its runbook, including service state, application version, backup state, and expected functionality.
 
+For the reverse proxy, the baseline should also include Nginx configuration validation, active listeners, current certificate validity, proxied-service routing, and current DNS behavior.
+
 Any unexplained pre-existing failure should be documented before maintenance begins so it is not incorrectly attributed to the change window.
 
 ## Phase 3: Maintain critical guest services before the hypervisor
@@ -96,15 +100,17 @@ Recommended sequence for a small single-host environment:
 
 1. file services
 2. password-management service
-3. DNS and filtering service
-4. development workload
-5. Home Assistant
-6. metrics and visualization stack
-7. other active guests
-8. Proxmox hypervisor
-9. Checkmk monitoring server, when it is maintained in the same window
+3. development workload
+4. Home Assistant
+5. metrics and visualization stack
+6. application workloads that depend on local DNS or reverse-proxy access
+7. reverse proxy and TLS ingress
+8. DNS and filtering service
+9. other active guests
+10. Proxmox hypervisor
+11. Checkmk monitoring server, when it is maintained in the same window
 
-Dependency awareness matters more than the exact numeric order. A service that other maintenance steps actively depend on should remain available until those steps no longer require it.
+Dependency awareness matters more than the exact numeric order. DNS and the reverse proxy should remain available until dependent service validation no longer requires them. If the reverse proxy itself is being maintained, retain documented direct backend and DNS rollback paths for critical services.
 
 ## Phase 4: Execute guest-specific maintenance
 
@@ -113,6 +119,7 @@ Use the corresponding runbook for each workload:
 * [File services container maintenance](runbooks/fileshare-container-maintenance.md)
 * [Vaultwarden container maintenance](runbooks/vaultwarden-container-maintenance.md)
 * [Pi-hole container maintenance](runbooks/pihole-container-maintenance.md)
+* [Reverse proxy container maintenance](runbooks/reverse-proxy-container-maintenance.md)
 * [Development VM maintenance](runbooks/development-vm-maintenance.md)
 * [Home Assistant VM maintenance](runbooks/home-assistant-vm-maintenance.md)
 * [Monitoring VM maintenance](runbooks/monitoring-vm-maintenance.md)
@@ -163,9 +170,13 @@ If an expected VM is stopped, inspect its autostart configuration:
 qm config <vmid> | grep -E '^onboot|^startup'
 ```
 
+For containers, inspect the corresponding `pct config <ctid>` output when autostart behavior is in question.
+
 Correct autostart configuration where policy requires the guest to return automatically after future host reboots.
 
 Then validate each workload at the application level. A guest showing `running` is not sufficient evidence of service recovery.
+
+For the reverse proxy, validate Nginx configuration, expected listeners, certificate trust, DNS resolution, backend routing, and at least one representative proxied service before considering ingress recovered.
 
 ## Phase 7: Maintain the Checkmk server
 
@@ -182,7 +193,7 @@ Before taking Checkmk offline:
 After Checkmk maintenance:
 
 * validate the Checkmk site services
-* validate the web interface
+* validate the web interface through the reverse proxy
 * validate agent communication
 * validate notification transport when relevant
 * allow monitored hosts and services to refresh
@@ -198,6 +209,8 @@ First confirm:
 * the hypervisor is healthy
 * expected storage is active
 * all intended guests are running
+* local DNS is healthy
+* the reverse proxy is healthy and serving expected HTTPS paths
 * application-level checks pass
 * Checkmk has refreshed host and service states
 * no unexpected WARN, CRIT, UNKNOWN, or DOWN conditions remain
@@ -216,6 +229,7 @@ After successful validation:
 * retain application-native backups according to their retention policy
 * remove temporary files or dumps only when their required retention period has passed
 * verify intentionally stopped guests remain stopped
+* confirm reverse-proxy certificate and routing configuration remain in the expected state
 * record material deviations and new operational requirements
 
 ## Phase 10: Record the change
@@ -225,7 +239,7 @@ Document at minimum:
 * maintenance date
 * affected systems
 * package or application updates applied
-* repository, DNS, storage, or boot changes made
+* repository, DNS, storage, boot, reverse-proxy, or certificate changes made
 * reboots performed
 * problems encountered
 * corrective actions
@@ -233,7 +247,7 @@ Document at minimum:
 * rollback actions if any
 * monitoring downtime coverage and final monitoring state
 
-Public repository entries must remain sanitized and must not expose live credentials, internal addresses, secrets, or unnecessary identifying details.
+Public repository entries must remain sanitized and must not expose live credentials, internal addresses, secrets, private keys, or unnecessary identifying details.
 
 ## Full maintenance completion criteria
 
@@ -246,6 +260,7 @@ The maintenance window is complete only when:
 * the expected kernel and Proxmox versions are active after reboot
 * storage and systemd health are normal
 * DNS and networking function normally
+* the reverse proxy presents trusted HTTPS and routes expected services correctly
 * all intended guests are running
 * required autostart behavior is configured
 * application-level validation passes for each maintained workload
