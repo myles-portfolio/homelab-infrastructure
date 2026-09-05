@@ -45,7 +45,7 @@ Home Assistant backend
 
 Home Assistant continues to listen on its private application endpoint while Nginx provides the client-facing HTTPS layer. The canonical Home Assistant service name resolves to the reverse proxy through split DNS rather than directly to the backend.
 
-Home Assistant's HTTP server is configured to trust the dedicated reverse proxy when processing forwarded client information. Trusted-proxy configuration is maintained through the supported Home Assistant network settings rather than being duplicated in the public `configuration.yaml` example.
+Home Assistant's HTTP server is configured to trust the dedicated reverse proxy when processing forwarded client information.
 
 The migration demonstrated an important ordering requirement: application-side proxy trust must be validated before DNS is repointed to centralized ingress. Home Assistant rejects forwarded-header requests from untrusted proxy sources, so future proxy changes should confirm trusted-proxy state, canonical URL configuration, backend reachability, and WebSocket behavior before cutover.
 
