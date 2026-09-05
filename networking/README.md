@@ -57,11 +57,55 @@ Selected private web applications combine both patterns. Tailscale controls remo
 
 ## Network and service flow
 
-The current network diagram documents the local DNS and reverse-proxy relationships. The remote-access path is documented separately in [`tailscale-remote-access.md`](tailscale-remote-access.md).
+The following Mermaid diagram documents the sanitized local DNS, reverse-proxy, remote-access, and service relationships. The remote-access implementation is documented in more detail in [`tailscale-remote-access.md`](tailscale-remote-access.md).
 
-![Network and service flow](diagrams/network-service-flow.png)
+```mermaid
+flowchart LR
+    subgraph Clients
+        LC[Local client]
+        RC[Trusted remote device]
+    end
 
-The diagram is intentionally sanitized and does not expose the live environment's real domains, IP addresses, or other sensitive addressing details.
+    RC --> TS[Tailscale]
+    TS --> SR[Dedicated subnet router]
+    SR --> LAN[Private homelab LAN]
+
+    LC --> DNS[Pi-hole local DNS]
+    LAN --> DNS
+
+    DNS -->|Public lookup| UP[Upstream DNS]
+    DNS -->|Internal service name| RP[Nginx reverse proxy]
+
+    subgraph PrivateWeb[Private user-facing web services]
+        MON[Monitoring]
+        PWM[Password management]
+        HA[Home Assistant]
+        RAG[Personal knowledge services]
+        DEV[Other private web applications]
+    end
+
+    RP --> MON
+    RP --> PWM
+    RP --> HA
+    RP --> RAG
+    RP --> DEV
+
+    subgraph Backend[Local and backend-only services]
+        SMB[Samba or network storage]
+        DB[Databases and internal backends]
+        MET[Prometheus, exporters, and monitoring agents]
+        DNSADM[Pi-hole administrative interface]
+    end
+
+    LAN --> SMB
+    LAN --> DB
+    LAN --> MET
+    TS -. Explicitly granted admin access .-> DNSADM
+
+    ACME[ACME DNS challenge provider] -. Wildcard certificate lifecycle .-> RP
+```
+
+The diagram is intentionally sanitized and does not expose the live environment's real domains, IP addresses, subnets, guest IDs, or detailed access-control rules.
 
 ## Design principles
 
