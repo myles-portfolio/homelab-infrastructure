@@ -15,7 +15,7 @@ The design emphasizes reducing unnecessary exposure, separating credentials by f
 5. **Limit trust relationships.** Reverse-proxy trust, service permissions, file-share access, and remote-access permissions should be scoped to the smallest practical set of systems.
 6. **Keep recovery controls independent.** Snapshots, application backups, database dumps, and external backup copies address different failure modes.
 7. **Harden remote administration.** SSH hardening and secure remote access are treated as explicit security work rather than default assumptions.
-8. **Validate after security changes.** Authentication, service access, and rollback paths must be tested after modifying security controls.
+8. **Validate after security changes.** Authentication, service access, denied paths, and rollback options must be tested after modifying security controls.
 
 ## Exposure reduction
 
@@ -26,7 +26,7 @@ Several architectural choices reduce attack surface:
 * centralized TLS termination for selected internal services
 * avoidance of unnecessary inbound WAN port forwarding
 * backend application ports kept private where practical
-* planned secure remote access through Tailscale rather than exposing administrative interfaces directly
+* secure remote access through Tailscale rather than exposing administrative interfaces directly
 
 See [`../networking/`](../networking/) for the networking architecture that supports these controls.
 
@@ -51,18 +51,28 @@ Backend migrations are staged so a DNS rollback can restore the previously valid
 
 ## Secure remote access
 
-Tailscale has been selected as the overlay VPN for remote administrative access.
+Tailscale is deployed as the overlay VPN for remote administrative access.
 
-The target design separates remote network access from application ingress:
+A dedicated unprivileged Debian container provides the subnet-router role. It runs separately from the hypervisor, reverse proxy, DNS service, monitoring platform, and application workloads.
 
-* a dedicated lightweight Linux container will provide the subnet-router role
-* Proxmox, SSH, and similar administrative interfaces will remain private rather than being published through the reverse proxy
-* selected private web applications may continue to use Nginx for named HTTPS access while remote reachability is controlled through Tailscale
-* backend services such as PostgreSQL, Prometheus, exporters, and monitoring agents remain local unless an explicit remote requirement exists
+The implementation separates remote network access from application ingress:
 
-The initial subnet router will run as a dedicated Proxmox guest on the existing hypervisor. It will not share the reverse-proxy, DNS, monitoring, or application roles. This limits coupling and makes the remote-access function easier to monitor, back up, and replace independently.
+* Proxmox and selected SSH targets remain private and are reached through Tailscale
+* selected private web applications may use Nginx for trusted named HTTPS while Tailscale controls remote network reachability
+* Pi-hole administration is explicitly reachable through Tailscale while its DNS role remains local infrastructure
+* backend services such as PostgreSQL, Prometheus, exporters, and monitoring agents remain LAN-only unless a documented requirement changes
 
-A future second physical host or other always-on infrastructure device could provide a redundant subnet router if remote access availability becomes more important.
+The gateway uses narrowly scoped TUN device access inside an unprivileged LXC rather than privileged-container deployment. IPv4 forwarding is enabled only for the required subnet-routing role.
+
+Tailscale Grants replace the default unrestricted allow-all rule. The current policy follows a deny-by-default approach with explicit destinations and ports for approved administrative and HTTPS paths.
+
+Validation was performed from an external network and included both positive and negative tests. Intended Proxmox, reverse-proxy, Pi-hole, and selected SSH paths succeeded. A backend PostgreSQL path and an unapproved SSH path remained unavailable through Tailscale.
+
+The gateway is monitored in Checkmk and included in the Core Infrastructure scheduled guest backup policy.
+
+The initial subnet router shares the existing Proxmox host. Remote access therefore depends on that host remaining online. A future second physical host or other independent always-on infrastructure device could provide redundant subnet routing if remote-access availability becomes more important.
+
+See [`../networking/tailscale-remote-access.md`](../networking/tailscale-remote-access.md).
 
 ## Service accounts
 
@@ -101,6 +111,7 @@ Examples of information excluded from public configuration include:
 * exact geofence coordinates
 * public domains tied to the live environment
 * detailed private IP inventories
+* Tailscale authentication keys, tailnet identifiers, node addresses, and live access-policy identities
 
 Where configuration examples require sensitive values, generic placeholders are used instead.
 
@@ -133,7 +144,7 @@ The environment uses multiple backup layers depending on the workload:
 * temporary Proxmox snapshots for selected maintenance windows
 * persistent Docker volumes for stateful container workloads
 
-The reverse-proxy container and personal knowledge backend are now included in workload-appropriate scheduled guest backup policies. Backup creation and controlled restore validation remain separate recovery checks.
+The reverse-proxy container, personal knowledge backend, and remote-access gateway are included in workload-appropriate scheduled guest backup policies. Backup creation and controlled restore validation remain separate recovery checks.
 
 These mechanisms are not interchangeable. Each protects against a different failure mode.
 
@@ -147,7 +158,7 @@ SSH hardening has begun with the reverse-proxy workload and establishes the patt
 * validate a second remote session before disabling password authentication
 * repeat the pattern on additional Linux workloads after service-specific validation
 
-The broader environment-wide rollout remains staged so security improvements do not create avoidable lockout conditions.
+Tailscale restricts which remote SSH paths are reachable, but it does not replace host-level SSH authentication and hardening.
 
 ## Public documentation model
 
@@ -163,11 +174,11 @@ See [`../SECURITY.md`](../SECURITY.md) for publication-specific sanitization rul
 
 Current planned improvements include:
 
-* deploy the dedicated Tailscale subnet router and validate remote access controls
 * continue SSH key-based authentication rollout beyond the reverse proxy
 * certificate-expiration monitoring
 * automated backup restore testing
 * reverse-proxy certificate renewal and reload automation validation
 * expanded service-health alerting
+* consider redundant subnet routing when independent infrastructure is available
 
 These items are also tracked in the project wiki roadmap.
