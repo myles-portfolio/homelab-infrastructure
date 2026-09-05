@@ -2,15 +2,11 @@
 
 ## Purpose
 
-This document defines the introduction of Checkmk as an infrastructure and service-monitoring layer for the homelab.
+This document records the sanitized deployment and operating model for Checkmk as the homelab's primary infrastructure and service-state monitoring platform.
 
-Checkmk is not intended to replace the existing Prometheus and Grafana stack. Prometheus remains the primary time-series metrics platform, while Grafana remains the primary visualization layer. Checkmk is being introduced for host state, service state, agent-based monitoring, supported network-device monitoring, active checks, and operational alerting where that model provides clearer infrastructure visibility.
+Checkmk complements rather than replaces Prometheus and Grafana. Prometheus remains focused on time-series metrics, while Grafana remains the visualization layer.
 
-## Why add Checkmk
-
-The existing Prometheus stack is effective for metrics collection, historical analysis, dashboards, and exporter-based telemetry. Checkmk addresses a different operational question: whether a host, service, interface, storage layer, or infrastructure component is currently healthy and requires attention.
-
-The intended division of responsibilities is:
+## Monitoring responsibilities
 
 | Capability | Primary platform |
 |---|---|
@@ -21,41 +17,30 @@ The intended division of responsibilities is:
 | Linux agent monitoring | Checkmk |
 | Network-device state | Checkmk where supported |
 | Storage and hardware state | Checkmk where supported |
-| Metrics-based alert rules | Prometheus and Alertmanager, if retained |
-| Infrastructure state notifications | Checkmk |
+| Infrastructure notifications | Checkmk |
+| Metrics-based alerting | Prometheus and Alertmanager only where justified |
 
-This boundary may be adjusted after operational testing to avoid duplicate alerts and unnecessary collection overlap.
+The same operational condition should not normally generate duplicate notifications from multiple platforms.
 
-## Deployment
+## Deployment model
 
-Checkmk Community is deployed on a dedicated Debian virtual machine hosted by Proxmox VE.
+Checkmk Community runs on a dedicated Linux virtual machine hosted by Proxmox VE.
 
-Current platform sizing:
+The public repository intentionally omits exact VM sizing, operating-system patch level, site identifier, internal addresses, hostnames, and software version fingerprints unless they are necessary to explain a compatibility issue.
 
-| Resource | Allocation |
-|---|---:|
-| vCPU | 2 |
-| Memory | 4 GB |
-| Storage | 64 GB |
-| Network adapter | VirtIO |
-| Operating system | Debian 13 |
-| Checkmk edition | Community |
+The dedicated VM provides workload isolation, a clear maintenance boundary, and independent recovery controls.
 
-The dedicated VM provides workload isolation, an independent maintenance boundary, straightforward backup and recovery, and a deployment model that closely matches Checkmk's standard Linux installation workflow.
+Checkmk is not installed directly on the hypervisor.
 
-Checkmk is not installed directly on the Proxmox host.
+## Web access security
 
-### Web access security
-
-The Checkmk web interface is now accessed through the dedicated Nginx reverse proxy rather than using the Checkmk host as the client-facing TLS endpoint.
-
-The client-facing path is:
+The Checkmk web interface is presented through the dedicated Nginx reverse proxy rather than using the monitoring VM as the client-facing TLS endpoint.
 
 ```text
 Client
   |
   v
-Local DNS
+Internal name resolution
   |
   v
 Nginx reverse proxy
@@ -64,39 +49,27 @@ Nginx reverse proxy
 Checkmk backend
 ```
 
-The reverse proxy presents a publicly trusted wildcard certificate issued through ACME DNS challenge validation. The wildcard private key remains on the proxy rather than being distributed to the Checkmk host.
+The reverse proxy presents trusted TLS while certificate private keys remain isolated from the Checkmk host.
 
-The migration was staged. Before changing DNS, a client request was forced to the new proxy address while preserving the normal service hostname. This validated certificate trust, Nginx routing, and backend reachability without changing the normal path for other clients.
+The migration was staged and validated before DNS cutover. Public documentation records the method rather than the live hostname, address changes, or resolver records.
 
-After DNS cutover, the Checkmk active DNS service was updated to expect the proxy address. Troubleshooting identified a stale host-level DNS entry that caused both the old backend address and the new proxy address to be returned. The stale entry was removed, the resolver was reloaded, and both direct resolver tests and the Checkmk DNS service returned to the expected healthy state.
-
-Certificate renewal automation on the reverse proxy, automatic Nginx reload after successful renewal, and certificate-expiration monitoring remain explicit follow-up controls.
-
-Private hostnames, DNS API credentials, certificate account details, private keys, and other live topology values are intentionally omitted from this repository.
+Certificate renewal automation and certificate-expiration monitoring remain explicit lifecycle controls.
 
 ## Configuration structure
 
-The Checkmk folder hierarchy is designed as a configuration-inheritance model rather than only a visual filing system.
-
-The initial hierarchy separates production and development environments, then introduces technology or platform boundaries only where they provide useful inheritance behavior.
+The Checkmk folder hierarchy is used as a configuration-inheritance model rather than only a visual filing system.
 
 The operating model is:
 
-* **Folders** define configuration inheritance boundaries and broad organizational structure.
-* **Host tags** define controlled, mutually exclusive classifications that can be referenced consistently in rules.
-* **Labels** carry flexible metadata that does not justify a rigid folder or tag dimension.
+* **Folders** define broad inheritance boundaries.
+* **Host tags** define controlled classifications that can be referenced consistently in rules.
+* **Labels** carry flexible metadata that does not justify a rigid taxonomy.
 
-The initial custom classification taxonomy is defined and validated:
+The current classification model includes dimensions such as environment, service criticality, platform, virtualization type, and service class.
 
-* Environment
-* Service Criticality
-* Platform
-* Virtualization
-* Service Class
+Semantic host naming keeps monitoring object identity independent of IP addressing and implementation details.
 
-Flexible labels are used for metadata such as service role, backup policy, and hypervisor platform. Built-in Checkmk classifications remain responsible for agent, SNMP, address-family, and discovered operating-system or device metadata.
-
-A semantic host-naming standard is also established so Checkmk object identity remains independent of IP addressing and implementation details. See [`checkmk-configuration-standards.md`](checkmk-configuration-standards.md) for the naming convention, taxonomy, label conventions, and rule-targeting standard.
+See [`checkmk-configuration-standards.md`](checkmk-configuration-standards.md) for the naming, taxonomy, and rule-targeting standards.
 
 ## Deployment sequence
 
@@ -104,163 +77,104 @@ A semantic host-naming standard is also established so Checkmk object identity r
 
 Status: **Complete**
 
-Completed work:
+Validated outcomes:
 
-1. Created a dedicated Debian VM in Proxmox.
-2. Applied operating-system updates.
-3. Configured hostname, internal DNS, and stable addressing.
-4. Installed the supported Checkmk Community package.
-5. Created the initial Checkmk site.
-6. Validated the Checkmk web interface and site services.
-7. Added the VM to workload-specific Proxmox backup coverage.
-8. Created a fresh backup and restored it as a temporary isolated VM.
-9. Validated restored Debian startup, Checkmk installation, site presence, site service state, and site data.
-10. Removed the temporary restore-test VM after successful validation.
-
-Phase 1 acceptance is satisfied because both platform operation and VM-level recoverability have been demonstrated.
+* dedicated monitoring VM deployed and patched
+* Checkmk Community installed and site services validated
+* web access verified
+* workload-specific backup coverage assigned
+* isolated guest restore completed successfully
+* restored monitoring application state validated before temporary recovery resources were removed
 
 ### Phase 2: Low-risk onboarding
 
 Status: **Complete**
 
-A non-hypervisor development Linux guest was used as the first managed host so the agent, service-discovery, classification, rule-targeting, and state-transition workflows could be validated without introducing risk to core infrastructure.
+A low-risk Linux workload was used to validate the standard onboarding workflow before expanding to core infrastructure.
 
-Validated onboarding workflow:
+Validated workflow:
 
-1. place the host in the appropriate Checkmk folder
-2. install the Checkmk Linux agent package
-3. register the agent with the Checkmk site
-4. restrict the agent listener so only the monitoring server can reach it
-5. validate agent connectivity
-6. run service discovery
-7. review discovered host labels and services before acceptance
-8. activate the resulting monitoring configuration
-9. confirm the host and accepted services report healthy states
+1. classify the host
+2. install and register the Linux agent
+3. restrict agent reachability appropriately
+4. validate connectivity
+5. run service discovery
+6. review discovered labels and services
+7. activate configuration
+8. confirm healthy final state
 
-Controlled state-transition testing was also completed for service failure, agent communication failure, and full host outage. In each case, Checkmk detected the expected state transition and returned automatically to a healthy state after recovery.
-
-Phase 2 acceptance is satisfied because onboarding, inheritance, classification, rule targeting, problem detection, and recovery behavior have all been demonstrated on a low-risk host.
+Controlled testing demonstrated expected problem and recovery state transitions.
 
 ### Phase 3: Core guest coverage
 
 Status: **Complete**
 
-Phase 3 expanded the validated Checkmk model to core production workloads and confirmed that active checks can represent meaningful service behavior instead of only host reachability or process state.
+Coverage was expanded to production workloads using both agents and active checks where appropriate.
 
-Completed coverage includes:
+Representative monitoring includes:
 
-* DNS service health, including internal-record and upstream-resolution checks
-* password-management application health through a user-facing HTTPS check
-* file-service health, mounted storage visibility, and authenticated SMB share access
-* Home Assistant availability through an active web check without installing an unsupported guest agent
-* monitoring-stack host health through a registered Linux agent
-* Prometheus application availability through an active HTTP check
-* Grafana application availability through an independent active HTTP check
+* DNS health
+* private web application availability
+* authenticated file-service checks
+* Home Assistant availability
+* monitoring-stack host health
+* Prometheus and Grafana availability
+* filesystem and systemd state
 
-Additional Phase 3 improvements included:
-
-* semantic host naming with network addresses stored separately
-* least-privilege credentials for authenticated active checks
-* container-specific page-table memory thresholds targeted only to Linux containers
-* validation that the revised page-table thresholds cleared non-actionable warnings while preserving the rest of the Linux memory check
-* cleanup of unused container images on the monitoring VM after Checkmk highlighted elevated root-filesystem utilization
-* narrow firewall access for the Checkmk agent listener on the monitoring VM
-
-Phase 3 acceptance is satisfied because every planned core guest target is now represented through a healthy host or appliance object and at least one meaningful service-level validation where practical.
+Configuration tuning remains narrowly targeted so one noisy check does not weaken unrelated monitoring.
 
 ### Phase 4: Network infrastructure monitoring
 
 Status: **Complete**
 
-Phase 4 evaluated the actual management capabilities of the current core network devices and adjusted the monitoring design to match supported interfaces rather than forcing SNMP where it is unavailable.
+Current network devices are monitored to the level supported by their management capabilities.
 
-Completed work:
+The design uses reachability and management-interface checks where deeper telemetry is unavailable, while retaining SNMP as the preferred deeper-monitoring method for future supported devices.
 
-* onboarded the core router as a production network device
-* onboarded the core switch as a separate production network device
-* classified both devices through the existing Environment, Service Criticality, Platform, Virtualization, and Service Class model
-* confirmed both devices report healthy ICMP reachability
-* verified that the current router firmware does not expose an SNMP service through its supported management interface
-* verified that the current switch model does not support SNMP
-* retained SNMP as the preferred deeper-monitoring method for future network devices that support it
-* added independent HTTP management-interface availability checks for the router and switch
-* confirmed both management-interface checks report healthy state
+Live management addresses, model-specific limitations, community strings, and credentials are not published.
 
-Phase 4 acceptance is satisfied because both current core network devices are monitored to the maximum practical level supported by their management capabilities: host reachability plus management-interface availability.
-
-SNMP credentials, community strings, management addresses, and live hostnames must not be committed to the public repository.
-
-### Phase 5: Proxmox host onboarding
+### Phase 5: Hypervisor onboarding
 
 Status: **Complete**
 
-Phase 5 added the Proxmox VE hypervisor as a deliberately scoped production infrastructure host while preserving the separation between Checkmk state monitoring and Prometheus historical metrics.
+The Proxmox host is monitored as a deliberately scoped infrastructure target.
 
-Completed work:
+Coverage includes Linux health, storage state, selected interfaces, processes, disk health, and other host-level conditions that complement existing Prometheus telemetry.
 
-* created a semantic hypervisor host object under the production Linux infrastructure hierarchy
-* installed and registered the normal Checkmk Linux agent directly on the Proxmox node
-* completed Linux service discovery and validated CPU, memory, disk I/O, systemd, time synchronization, filesystems, networking, and Proxmox process checks
-* confirmed ZFS pool health through the native `zpool status` service and storage-pool capacity checks
-* reduced interface noise by retaining only the physical host interface and intentional Proxmox bridge while disabling guest firewall and virtual interface services
-* disabled per-guest ZFS backing-filesystem services so guest storage capacity remains owned by guest monitoring rather than duplicated at the hypervisor layer
-* installed the current `smart_posix` Checkmk plug-in and validated SMART data for all physical drives
-* confirmed the physical drives report healthy SMART state
-* added targeted temperature thresholds for the installed high-capacity HDDs after validating their normal operating range, while leaving unrelated drive checks at their defaults
-* verified all retained hypervisor services report healthy state
-
-The Proxmox VE special-agent integration was also evaluated using a dedicated read-only Proxmox API account with the built-in auditor role. Network connectivity, API reachability, and authentication setup were validated, but the current special agent crashes while parsing the node API response because the expected timezone mapping is absent. The special-agent rule is therefore disabled until a compatible Checkmk or Proxmox update resolves the condition.
-
-This blocker does not prevent Phase 5 acceptance because the normal Linux agent, ZFS checks, SMART monitoring, Proxmox process checks, and existing Prometheus exporters already provide strong complementary visibility into the hypervisor. The API integration remains a deferred enhancement rather than a requirement for baseline host monitoring.
+A deeper API-based integration was evaluated but deferred because of a current compatibility problem. The public repository intentionally avoids documenting unnecessary parser details, live API identities, or exact platform versions that could improve fingerprinting.
 
 ### Phase 6: Notification delivery
 
 Status: **Complete**
 
-Phase 6 established a complete outbound notification path for Checkmk Community.
+A complete outbound notification path is operational using a local mail transport and managed SMTP relay.
 
-Completed work:
+Validation included:
 
-* verified a dedicated sender subdomain through the managed SMTP provider using public DNS authentication records
-* created a dedicated SMTP identity for homelab monitoring and stored the credential outside the repository
-* installed Postfix on the Checkmk VM as the local outbound mail transport
-* configured Postfix to relay through the managed SMTP provider on TCP 587 using authenticated STARTTLS
-* validated DNS resolution, TCP connectivity, TLS negotiation, Postfix relay authentication, provider acceptance, and mailbox delivery
-* retained the default Checkmk HTML email method and refined the baseline notification rule to include host DOWN and UP transitions plus service WARN, CRIT, UNKNOWN, and OK transitions
-* created an administrative contact group and assigned it to monitored hosts through a contact-group assignment rule
-* configured the Checkmk contact email destination and a fallback email address
-* validated Checkmk notification-rule matching, contact selection, notification plug-in execution, Postfix handoff, SMTP relay activity, and final mailbox delivery through an actual test notification
+* monitoring-rule matching
+* contact selection
+* local mail handoff
+* authenticated relay delivery
+* final mailbox receipt
 
-The initial notification rule intentionally remains broad while real alert volume is observed. Warning notifications will remain enabled initially so tuning decisions can be based on operational evidence rather than assumptions.
+Provider-specific endpoints, sender-domain details, credentials, and live recipient identities are omitted.
 
-See [`checkmk-notifications.md`](checkmk-notifications.md) for the sanitized delivery architecture and configuration model.
+See [`checkmk-notifications.md`](checkmk-notifications.md) for the sanitized delivery model.
 
-### Incremental expansion: reverse-proxy monitoring
+### Incremental infrastructure expansion
 
-Status: **Complete**
+Status: **Ongoing**
 
-A dedicated Nginx reverse-proxy container is now onboarded as core infrastructure through the standard semantic naming, classification, Linux agent, TLS registration, discovery, and activation workflow.
+New infrastructure workloads are onboarded using the same classification, agent-registration, discovery, activation, and validation pattern.
 
-Validated coverage includes:
-
-* host availability
-* CPU, memory, filesystem, interface, uptime, and systemd state
-* Checkmk agent TLS registration
-* application-path validation through the first proxied service
-* active DNS verification after the service hostname was moved from the backend address to the proxy address
-
-Certificate-expiration monitoring remains a planned enhancement.
+Recent examples include shared ingress and secure remote-access infrastructure. Public documentation describes the monitoring pattern rather than publishing live object names, addresses, or policy details.
 
 ## Relationship to Prometheus
-
-Prometheus and Checkmk currently coexist.
-
-The working model is:
 
 ```text
 Infrastructure
    |
-   +--> Checkmk agents / supported network monitoring / active checks
+   +--> Checkmk agents / active checks / supported device monitoring
    |          |
    |          v
    |       Checkmk
@@ -274,73 +188,59 @@ Infrastructure
             Grafana
 ```
 
-Prometheus remains appropriate for questions such as utilization trends, historical metrics, rates, and capacity analysis.
+Prometheus is used for historical metrics, rates, and capacity trends.
 
-Checkmk is intended for questions such as whether a host, filesystem, ZFS pool, physical disk, service, interface, management endpoint, or dependency is currently in an operational state.
+Checkmk is used for current host, service, storage, interface, and dependency state.
 
 ## Alerting design
 
-Checkmk is the authoritative notification path for infrastructure and service-state conditions that it owns. Prometheus Alertmanager is no longer considered a prerequisite for those alerts and should only be introduced for Prometheus-owned metric conditions that justify a separate routing component.
+Checkmk is the authoritative notification path for infrastructure and service-state conditions that it owns.
 
-The baseline Checkmk notification design now includes:
+Alertmanager remains optional and should only be introduced for Prometheus-owned metric conditions that justify a separate routing component.
 
-1. contact-group-based recipient ownership
-2. HTML email notifications for host DOWN and UP state changes
-3. HTML email notifications for service WARN, CRIT, UNKNOWN, and OK state changes
-4. a local Postfix relay using authenticated STARTTLS to a managed SMTP provider
-5. a fallback notification destination for unmatched events
-6. end-to-end delivery validation from Checkmk through the recipient mailbox
+Alert tuning is evidence-based and may include transient-state delays, reminders for persistent conditions, classification-based routing, acknowledgement behavior, scheduled-downtime suppression, and certificate-expiration visibility.
 
-The preferred result remains one authoritative notification path per operational condition.
-
-Next alerting work should focus on observed behavior rather than adding rules immediately. Candidate tuning includes transient-state delays, periodic reminders for persistent critical conditions, routing by classification, acknowledgement behavior, scheduled-downtime suppression, and certificate-expiration visibility.
-
-See [`alerting-roadmap.md`](alerting-roadmap.md) for the cross-platform ownership model and [`checkmk-notifications.md`](checkmk-notifications.md) for the notification-delivery implementation.
+The preferred result is one authoritative notification path per operational condition.
 
 ## Backup and recovery
 
-Checkmk is currently protected by a workload-specific Proxmox VM backup policy for full guest recovery.
+The monitoring platform is protected by workload-appropriate guest backup coverage and has been validated through an isolated restore test.
 
-VM-level recovery has been validated through an isolated restore test. The restored guest booted successfully and retained the Checkmk installation, monitoring site, site data, and service state.
+Application-native backup remains a planned additional recovery layer where it provides useful portability or granularity.
 
-A Checkmk-native site backup remains a planned second recovery layer for application-level recovery and migration.
+The public repository intentionally omits exact backup placement, storage topology, schedules, retention values, and failure combinations that could reveal the live recovery boundary.
 
-The current Proxmox backup destination resides on the redundant primary ZFS pool. This protects against guest-level failures and a single mirrored-disk failure, but it is not an independent copy against complete pool or host loss. An independent backup destination remains a future resilience improvement.
+See [`../../backup-recovery/README.md`](../../backup-recovery/README.md) for the sanitized recovery model.
 
 ## Security and publication requirements
 
 Public documentation must not include:
 
-* internal IP addresses
-* live internal or public hostnames where they expose unnecessary topology details
-* SNMP credentials
-* API tokens
-* Checkmk automation secrets
-* notification addresses or credentials
-* SMTP authentication material
+* internal IP addresses or live hostnames where they add no technical value
+* monitoring credentials, API tokens, or automation secrets
+* notification addresses or SMTP authentication material
 * password-manager contents
 * DNS API credentials
 * certificate private keys or account secrets
+* exact monitoring object inventories that reconstruct the live topology
+* exact platform sizing and patch levels unless central to the lesson being documented
 
-Sanitized examples should preserve architecture and operating concepts without exposing live configuration.
+Sanitized examples should preserve architecture, operating principles, and validation methods without exposing live configuration.
 
 ## Success criteria
 
-The Checkmk evaluation will be considered successful when:
+The Checkmk deployment is considered operational because:
 
-* the dedicated monitoring VM is stable and documented
-* the VM backup has been successfully restored and validated
-* Linux guests are monitored successfully
-* service discovery produces useful, actionable checks
-* reusable classification and rule targeting are validated
-* critical service availability can be represented clearly
-* current network infrastructure is monitored to the level supported by the hardware
-* the Proxmox hypervisor has meaningful host, storage, and physical-disk health coverage
-* backup and recovery paths are documented
-* Checkmk and Prometheus responsibilities are clearly separated
-* notification design avoids duplicate alerts
+* the monitoring platform is stable and documented
+* guest-level recovery has been demonstrated
+* Linux workloads are monitored successfully
+* service discovery and active checks provide actionable state
+* classification and rule targeting are reusable
+* network infrastructure is monitored to supported capability
+* the hypervisor has meaningful host and storage visibility
 * notification delivery is validated end to end
-* the Checkmk web interface is protected by trusted HTTPS through the dedicated reverse proxy
-* the reverse-proxy host itself is monitored independently from the Checkmk backend
+* Checkmk and Prometheus responsibilities are clearly separated
+* the web interface is protected by trusted TLS through centralized ingress
+* monitoring infrastructure is itself monitored and backed up
 
-Phases 1 through 6 demonstrate that the platform, guest, service, active-check, network, hypervisor, storage, hardware-monitoring, and notification-delivery models are operational. Trusted HTTPS through centralized ingress is also in place for the Checkmk web interface. Remaining work is incremental monitoring expansion, certificate-expiration monitoring, alert-quality tuning, and deferred compatibility improvements.
+Remaining work is incremental coverage expansion, certificate-expiration monitoring, alert-quality tuning, and deferred compatibility improvements.
