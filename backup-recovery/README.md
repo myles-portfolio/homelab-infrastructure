@@ -2,168 +2,102 @@
 
 ## Overview
 
-This section documents the layered backup and recovery model used across the homelab.
+This section documents the layered backup and recovery model used across the homelab without publishing the live storage topology, exact job structure, retention values, or recovery weaknesses.
 
-The environment does not rely on a single recovery mechanism. Different workloads use different controls because scheduled guest backups, snapshots, application backups, logical database dumps, persistent volumes, and network backup copies protect against different failure modes.
+The environment uses multiple recovery controls because guest backups, snapshots, application backups, logical database exports, persistent application data, and secondary copies address different failure modes.
 
 ## Backup and recovery architecture
 
-The following diagram summarizes the major recovery layers and their intended use.
+The following diagram presents the recovery layers at a conceptual level.
 
 ![Backup and recovery architecture](diagrams/backup-recovery-architecture.png)
 
-The diagram is intentionally sanitized and does not expose the live environment's real domains, IP addresses, credentials, or storage paths.
+The diagram is intentionally sanitized and does not expose live domains, addresses, storage paths, guest identifiers, backup schedules, or retention values.
 
 ## Recovery layers
 
-### Scheduled Proxmox guest backups
+### Scheduled guest backups
 
-Proxmox VE provides scheduled VM and container backups to dedicated backup storage on the mirrored ZFS pool.
+Proxmox VE provides scheduled VM and container backups for active infrastructure and application workloads.
 
-Backup jobs are organized by workload rather than using a single all-guests job. This isolates failures, allows different backup modes where needed, and makes retention and recovery requirements easier to manage as services evolve.
+Backup jobs are organized by workload characteristics rather than relying on a single undifferentiated job. This allows backup behavior to be adjusted when a workload has different consistency, availability, or recovery requirements.
 
-Current job groupings include:
+New infrastructure workloads are reviewed for backup coverage before they are treated as fully operational.
 
-* core infrastructure services
-* monitoring
-* Home Assistant
-* file services
-* development workloads
-
-New infrastructure workloads are not considered fully operational until their backup scope is reviewed and added to the appropriate scheduled job.
-
-The reverse-proxy container and remote-access gateway are included in the core infrastructure backup policy. The personal knowledge and RAG backend is included in the development backup policy. In all cases, successful scheduled backup creation and controlled restore validation remain separate validation requirements.
-
-Snapshot mode is used where it works reliably. The file-services container uses Stop mode because repeated Snapshot-mode attempts stalled during snapshot creation, while Stop mode completed successfully and returned the service to normal operation.
-
-ZSTD compression is used for scheduled guest backups. Retention preserves recent, daily, weekly, and monthly recovery points rather than only the newest copy.
-
-A successful backup task confirms that Proxmox created the expected backup artifact. It does not, by itself, prove that the guest can be recovered successfully. Recoverability is validated separately through controlled restore testing.
-
-Typical use:
-
-* recover a VM or container after guest-level failure or loss
-* restore a known recovery point without depending on an existing guest disk
-* validate infrastructure recovery procedures through an isolated test restore
+A successful backup task confirms that an artifact was created. It does not, by itself, prove that the guest can be recovered successfully. Recoverability is validated separately through controlled restore testing.
 
 ### Proxmox snapshots
 
-Temporary Proxmox snapshots provide fast VM-level rollback during selected maintenance windows.
+Temporary Proxmox snapshots are used as short-lived rollback protection for selected maintenance windows.
 
-They are useful when a change may affect the guest operating system or the VM as a whole, but they are not treated as long-term backups.
+They are not treated as long-term backups. Snapshots are removed after successful validation so they do not become stale recovery assumptions or unnecessary storage consumers.
 
-Typical use:
+### Application-level backups
 
-* take snapshot before higher-risk maintenance
-* apply operating-system or application changes
-* validate the workload
-* remove the snapshot after successful validation
+Some workloads also use application-native recovery mechanisms where those provide better granularity than a full guest restore.
 
-Snapshots are intentionally short-lived to avoid unnecessary storage consumption and dependence on stale rollback points.
+Examples include:
 
-### Home Assistant backups
+* application-generated configuration backups
+* logical database exports
+* persistent container data
+* secondary copies written outside the protected application guest
 
-Home Assistant uses its application-level backup system for configuration and appliance recovery.
+Application-level recovery is preferred when the operating system remains healthy and only application state must be restored.
 
-The current design stores backup copies in two locations:
+### Database recovery
 
-* local Home Assistant storage
-* external Samba network storage hosted outside the Home Assistant VM
+Database-backed workloads use logical exports where appropriate before higher-risk maintenance or data changes.
 
-This provides a recovery path even if the Home Assistant VM itself is damaged or unavailable.
+Logical recovery provides a narrower option than reverting an entire guest and helps separate application data recovery from operating-system recovery.
 
-The backup workflow includes automatic backups, backup creation before updates, retention controls, and manual validation of both storage targets.
+### Persistent container data
 
-### PostgreSQL logical backups
+Containerized applications treat runtime images and persistent state as separate recovery concerns.
 
-The Development VM uses PostgreSQL logical dumps before higher-risk maintenance.
+Refreshing or recreating an application container should not remove persistent application data unless a documented recovery procedure explicitly requires it.
 
-A logical dump protects the application database independently of the VM and provides a more granular recovery option than reverting the entire guest.
+### Infrastructure configuration state
 
-This is useful when the operating system remains healthy but database data or schema changes need to be restored.
+Shared infrastructure workloads such as reverse proxy and remote-access services are included in workload-appropriate guest backup coverage.
 
-### Docker persistent data
+Their recovery scope includes the operating-system configuration and service state required to rebuild the role. Secrets and reusable authentication material are handled separately and are not stored in this public repository.
 
-Stateful containerized applications depend on persistent volumes or bind-mounted application data.
-
-Container recreation is therefore treated separately from data removal. Refreshing an image and recreating a Compose service should not delete persistent application data unless a recovery procedure explicitly requires it.
-
-For workloads such as Vaultwarden, the running container is replaceable while the persistent application state is the critical recovery asset.
-
-### Reverse-proxy configuration and certificate state
-
-The dedicated reverse proxy is a core infrastructure workload because several internal web services can depend on its routing and TLS configuration.
-
-Its recovery scope includes:
-
-* Nginx site configuration
-* ACME client configuration
-* issued certificate state
-* renewal configuration and deploy hooks once implemented
-* SSH and operating-system hardening required to administer the workload
-
-The DNS provider API credential and private key material are not stored in the public repository. Recovery documentation should preserve the process for re-establishing those secrets without embedding them in source control.
-
-The guest is covered by the core infrastructure scheduled backup policy. A documented DNS rollback path remains useful because it provides service continuity if the reverse proxy fails even when a recoverable backup exists.
-
-### Remote-access gateway state
-
-The dedicated Tailscale subnet-router container is also treated as core infrastructure.
-
-Its recovery scope includes:
-
-* operating-system configuration
-* persistent IP-forwarding configuration
-* Tailscale daemon and local state
-* LXC-specific TUN access requirements documented outside the guest backup
-* Checkmk agent configuration
-* local administrative hardening
-
-Reusable authentication material and live Tailscale access-policy details are not stored in the public repository.
-
-A restore must be isolated carefully because duplicate Tailscale identity or network state can conflict with the production gateway if both are active simultaneously. Recovery validation should therefore confirm guest startup and local configuration before introducing the restored node to the production network or tailnet.
-
-### Network storage
-
-The file-services container provides external storage for selected application backups.
-
-A dedicated Samba share and service account are used for the Home Assistant backup path so machine-to-machine access is scoped to the required resource rather than a general-purpose user account.
+Restored infrastructure guests should be isolated during validation when duplicate host identity, network identity, certificates, or remote-access state could conflict with production systems.
 
 ## Backup storage design
 
-The local Proxmox backup dataset resides on the same mirrored ZFS pool that hosts primary guest storage.
+The live environment uses redundant local storage and additional workload-specific recovery controls.
 
-This design provides useful protection against guest loss, bad updates, accidental deletion within a guest, and a single physical disk failure because the ZFS mirror preserves pool availability after one mirror member fails.
+The public repository intentionally does not document the exact placement of primary data and backup datasets, physical disk layout, backup target names, or which failure combinations would defeat the current recovery model.
 
-It does not provide an independent recovery copy against complete pool loss, host loss, or a failure that affects both the primary guest storage and local backup dataset.
-
-An independent backup destination, such as separate external storage, another host, a NAS, or Proxmox Backup Server, remains a future resilience improvement when practical.
+The design objective is to increase independence between primary workloads and recovery copies over time. Additional independent storage remains part of the resilience roadmap as hardware and budget permit.
 
 ## Backup scope limitations
 
-Guest-level backup coverage does not automatically include every dataset visible from inside a VM or container.
+Guest-level backup coverage does not automatically protect every dataset visible from inside a VM or container.
 
-Proxmox-managed guest volumes are included according to the backup configuration, while externally mounted storage, bind mounts, and other non-volume paths may be excluded. For example, a bind-mounted dataset attached to the file-services container is excluded from the container backup because it is not a Proxmox-managed guest volume.
+Externally mounted datasets, bind mounts, network storage, or other data outside normal guest-managed volumes may require separate protection.
 
-Backup review therefore includes both of the following questions:
+Backup review therefore asks two distinct questions:
 
-1. Is the guest itself covered by a scheduled backup?
-2. Are any externally mounted or bind-mounted datasets protected through a separate recovery mechanism?
+1. Is the guest itself protected by an appropriate scheduled backup?
+2. Is important data outside the guest backup boundary protected through another recovery mechanism?
 
 A successful guest backup must not be interpreted as proof that every accessible dataset is protected.
 
-## Why multiple recovery methods exist
+## Recovery control selection
 
-The recovery methods are complementary rather than interchangeable.
+The available controls are complementary rather than interchangeable.
 
-| Recovery control | Best suited for | Example failure |
-|---|---|---|
-| Scheduled Proxmox backup | Full guest recovery | VM or container is lost, corrupted, or must be rebuilt from backup |
-| Proxmox snapshot | Fast guest-level rollback | VM maintenance introduces a boot or configuration failure |
-| Home Assistant backup | Application or appliance restore | Home Assistant configuration becomes unusable |
-| PostgreSQL logical dump | Database-level recovery | Database data or schema needs restoration |
-| Docker persistent data | Application state preservation | Container image is recreated or replaced |
-| External Samba backup | Recovery outside the source VM | Home Assistant VM or local backup storage fails |
+| Recovery control | Best suited for |
+|---|---|
+| Scheduled guest backup | Full VM or container recovery |
+| Proxmox snapshot | Short-term rollback during selected maintenance |
+| Application backup | Application-specific configuration or appliance recovery |
+| Logical database export | Database-level recovery |
+| Persistent container data | Application-state preservation across container recreation |
+| Secondary copy | Recovery outside the protected application workload |
 
 ## Validation model
 
@@ -175,40 +109,26 @@ Validation is performed in two stages.
 
 Confirm that:
 
-* the scheduled job completes successfully
-* the expected guest appears in the backup log
-* the backup artifact exists on the intended backup storage
-* retention settings are applied as expected
-* known exclusions such as bind mounts are understood and documented
+* the expected scheduled job completes successfully
+* the intended workload is included
+* the expected artifact exists
+* retention behavior is applied as designed
+* known exclusions are understood and documented internally
 
 ### Restore validation
 
-A controlled restore test provides stronger evidence of recoverability.
+Controlled restore testing provides stronger evidence of recoverability.
 
-The preferred guest restore test is:
+The general pattern is:
 
-1. restore a recent backup as a temporary VM or container with a different guest ID
-2. keep the restored guest isolated from the production network when duplicate addresses, hostnames, or service identities could conflict
+1. restore a recent recovery point into an isolated temporary guest
+2. prevent duplicate network or application identity from affecting production
 3. boot the restored guest
-4. validate operating-system startup and expected application data
-5. validate the primary service or application using local console access where practical
-6. shut down and remove the temporary restored guest after validation
+4. validate operating-system startup and expected application state
+5. validate the primary service using local or isolated access where practical
+6. remove the temporary restored guest after validation
 
-This process has been successfully exercised with the Checkmk monitoring VM. A fresh backup was restored to a temporary isolated VM with networking disconnected, then validated for operating-system startup, Checkmk installation, monitoring site presence, site data, and site service state. The temporary restored VM was removed after validation.
-
-For a monitoring server, validation should include the operating system, installed monitoring software, site or application configuration, and service state rather than merely proving that the guest reaches a login prompt.
-
-A backup job ending successfully proves backup creation. A successful controlled restore and application validation provide evidence that the backup is actually recoverable.
-
-Other recovery-layer validation examples include:
-
-* Home Assistant backup appears in both local and external locations
-* PostgreSQL dump file exists and the application database remains queryable after maintenance
-* Proxmox snapshot is visible before the change and intentionally removed afterward
-* Docker services return with persistent application state intact after recreation
-* Samba backup destination accepts an authenticated write
-* reverse-proxy configuration and certificate state are present after a controlled guest restore
-* remote-access gateway configuration can be inspected safely in an isolated restore without duplicating active network identity
+The environment has successfully exercised this pattern with a critical infrastructure workload. Public documentation records the method and outcome without publishing the exact restored guest identity, storage target, or live recovery topology.
 
 ## Recovery decision model
 
@@ -218,46 +138,46 @@ Use the narrowest recovery mechanism that safely addresses the failure.
 Failure detected
       |
       v
-Is the issue application data only?
+Application data only?
       |
-      +--> yes --> application backup or database restore
+      +--> yes --> application or database recovery
       |
       +--> no
              |
              v
-Is the guest operating system or VM state affected?
+Guest operating system or full guest state affected?
              |
              +--> yes --> snapshot rollback or full guest recovery
              |
              +--> no --> service-level remediation
 ```
 
-Restoring an entire VM when only a database needs recovery creates unnecessary impact. Conversely, restoring application data alone will not fix a broken guest operating system.
+Restoring an entire guest when only a database needs recovery creates unnecessary impact. Conversely, restoring application data alone will not repair a broken operating system.
 
 ## Operational principles
 
-1. **Choose recovery controls by workload.** Different applications require different recovery mechanisms.
-2. **Keep at least one recovery copy outside the protected workload when practical.**
-3. **Do not confuse snapshots with backups.** Snapshots are primarily short-term rollback tools.
-4. **Validate recoverability, not only backup creation.** A successful backup task is necessary evidence, but a controlled restore test provides stronger proof.
-5. **Understand backup scope.** Guest backups may exclude bind mounts, external datasets, and other storage outside Proxmox-managed guest volumes.
-6. **Isolate backup failures.** Workload-specific jobs prevent one unusual guest from blocking unrelated backups.
-7. **Remove temporary rollback and restore-test artifacts after validation.**
-8. **Preserve persistent application data when recreating containers.**
-9. **Use the least disruptive recovery method that solves the problem.**
-10. **Review backup coverage whenever a new infrastructure guest is deployed.**
+1. Choose recovery controls by workload.
+2. Keep recovery copies independent from the protected workload where practical.
+3. Do not confuse snapshots with backups.
+4. Validate recoverability, not only backup creation.
+5. Understand backup boundaries and external datasets.
+6. Isolate backup failures by workload where practical.
+7. Remove temporary rollback and restore-test artifacts after validation.
+8. Preserve persistent application state when recreating containers.
+9. Use the least disruptive recovery method that solves the problem.
+10. Review backup coverage whenever a new infrastructure workload is deployed.
 
 ## Current improvement areas
 
-Workload-specific scheduled Proxmox backup coverage is in place for the established guest inventory, including the reverse proxy, remote-access gateway, and personal knowledge backend. The restore workflow has been validated successfully with a critical monitoring VM.
+Current work focuses on strengthening recoverability without publishing the exact live protection topology.
 
-Additional planned work includes:
+Planned improvements include:
 
-* validate successful scheduled backup creation for newly added workloads
-* periodically repeat guest restore tests for critical workloads
-* identify external or bind-mounted datasets requiring separate backup coverage
-* add Checkmk-native site backups as an application-level recovery layer alongside VM-level protection
-* define restore-test frequency for critical workloads
-* add an independent backup destination when hardware or budget permits
+* continued backup-creation validation for newer workloads
+* periodic controlled restore testing for critical services
+* review of externally mounted or otherwise excluded datasets
+* additional application-native recovery layers where useful
+* defined restore-test frequency for critical workloads
+* greater independence of recovery storage as additional hardware becomes practical
 
 See the project wiki roadmap for the broader infrastructure backlog.
