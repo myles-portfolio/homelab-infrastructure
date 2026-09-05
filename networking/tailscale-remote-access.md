@@ -4,13 +4,13 @@
 
 This document describes the sanitized secure remote-access pattern used by the homelab.
 
-The design provides authenticated encrypted access to private infrastructure without publishing administrative interfaces to the public internet or coupling remote administration to the Nginx reverse proxy.
+The design provides authenticated encrypted access to private infrastructure without publishing administrative interfaces to the public internet or coupling remote administration to the application reverse proxy.
 
-Exact addresses, tailnet identifiers, authentication material, user identities, device names, and live access-policy details are intentionally excluded.
+Exact addresses, tailnet identifiers, authentication material, user identities, device identities, live policy rules, and internal service mappings are intentionally excluded.
 
 ## Architecture
 
-A dedicated unprivileged Debian Linux container provides the Tailscale subnet-router role.
+A dedicated lightweight Linux guest provides the Tailscale subnet-router role.
 
 ```text
 Trusted remote device
@@ -23,82 +23,54 @@ Dedicated subnet router
         |
         v
    Private homelab LAN
-        |
-        +--> Proxmox management
-        +--> selected SSH targets
-        +--> Pi-hole administration
-        +--> Nginx private HTTPS ingress
 ```
 
-The subnet router is a separate workload from:
+The remote-access role is kept separate from the hypervisor, reverse proxy, DNS service, monitoring platform, and application workloads. This reduces coupling and makes the gateway easier to maintain, monitor, replace, or relocate independently.
 
-* the Proxmox hypervisor
-* the Nginx reverse proxy
-* Pi-hole
-* Checkmk
-* application workloads
+## Deployment model
 
-This separation keeps remote-access routing independent from application ingress, DNS, monitoring, and virtualization responsibilities.
+The gateway is intentionally small, dedicated, and automatically started with the virtualization platform.
 
-## Container profile
+It runs as an unprivileged Linux container with only the capabilities required for the Tailscale networking function. The implementation avoids broad privilege escalation simply to support overlay networking.
 
-The gateway is intentionally lightweight:
-
-```text
-Guest type: unprivileged LXC
-Operating system: Debian 13
-vCPU: 1
-RAM: 512 MB
-Swap: 512 MB
-Root disk: 8 GB
-Autostart: enabled
-```
-
-The container uses a static LAN address and the normal internal DNS resolver.
-
-Because Tailscale requires a Linux TUN interface, the container receives narrowly scoped access to `/dev/net/tun` rather than being converted to a privileged container. Nesting is enabled to support the Debian systemd environment used by the workload.
+The public repository does not publish exact guest sizing, live address assignments, device identifiers, or hypervisor configuration lines.
 
 ## Routing model
 
-The gateway advertises the homelab IPv4 subnet to authenticated Tailscale clients.
+The gateway advertises only the private network route required for remote homelab access.
 
-IPv4 forwarding is enabled persistently inside the gateway. IPv6 forwarding remains disabled because the current remote-access design does not advertise an IPv6 subnet.
+Forwarding is enabled only for the address family currently used by the remote-access design. The gateway is configured as a subnet router rather than as a general internet exit node.
 
-The gateway is a subnet router, not an exit node. General internet traffic is not intentionally routed through the homelab.
+Route advertisement and access authorization are treated as separate controls.
 
 ## Access-control model
 
-Route advertisement and access authorization are separate controls.
+The approved route provides reachability, while Tailscale access policy determines which remote connections are permitted.
 
-The approved subnet route makes the private network reachable through the Tailscale overlay. Tailscale Grants then limit which remote connections are permitted.
+The current design follows a deny-by-default approach and separates services by access requirement:
 
-The current policy follows a deny-by-default model and separates services into access classes:
+| Access class | Intended remote behavior |
+|---|---|
+| Private administrative services | Explicit Tailscale access only |
+| Private user-facing web services | Tailscale reachability with HTTPS presentation where appropriate |
+| Backend infrastructure | Remains local unless a documented remote requirement exists |
+| Local data services | Remains local by default; remote access requires separate justification |
 
-| Access class | Examples | Remote access behavior |
-|---|---|---|
-| Private administrative | Proxmox management, selected SSH targets | Tailscale only |
-| Private user-facing web | Checkmk and other applications presented through Nginx | Tailscale reachability plus Nginx HTTPS |
-| Local administrative web | Pi-hole administration | LAN plus explicitly granted Tailscale access |
-| Backend infrastructure | PostgreSQL, Prometheus, exporters, monitoring agents | LAN only unless a documented requirement changes |
-| Local data services | Samba and similar storage | LAN by default; remote access requires separate justification |
+The public repository documents these classes rather than publishing the live policy file, exact destination addresses, or complete service allow list.
 
-The public repository documents the model rather than publishing the live policy file.
+## Validation model
 
-## Validated behavior
+Remote-access validation is performed from a client on an external network so ordinary local routing cannot be mistaken for successful overlay routing.
 
-The deployment was validated from a client on an external network rather than from the home LAN. This prevents a successful local route from being mistaken for successful overlay routing.
+Validation includes both positive and negative tests:
 
-Validation confirmed:
+* confirm an intended administrative path is reachable through Tailscale
+* confirm an intended private HTTPS path is reachable
+* confirm an approved administrative protocol works only to selected systems
+* confirm at least one backend-only service remains unreachable remotely
+* confirm no inbound WAN port forwarding is required for the remote-access path
 
-* remote TCP connectivity to the Proxmox management interface through the subnet router
-* remote HTTPS connectivity to the Nginx reverse proxy
-* remote access to the Pi-hole administration path
-* SSH connectivity to explicitly approved Linux administrative targets
-* SSH denial to a system outside the approved SSH target set
-* PostgreSQL access denial over Tailscale for a backend database service that remains LAN-only
-* no inbound WAN port forwarding is required for the remote-access path
-
-The positive and negative tests are both important. Successful access proves the route works, while denied access provides evidence that the policy is restricting paths that should remain local.
+Positive tests prove the path works. Negative tests provide evidence that policy restrictions are being enforced.
 
 ## Reverse proxy relationship
 
@@ -109,82 +81,41 @@ Tailscale = authenticated private network reachability
 Nginx     = HTTPS termination and hostname-based application routing
 ```
 
-For a private web application, the combined path can be:
+A private web application may use both layers, while infrastructure administration can use Tailscale directly without publishing the management interface through Nginx.
 
-```text
-Remote client
-    |
-    v
-Tailscale
-    |
-    v
-Private LAN
-    |
-    v
-Nginx
-    |
-    v
-Application backend
-```
-
-For administrative interfaces such as Proxmox, Nginx is intentionally omitted:
-
-```text
-Remote client
-    |
-    v
-Tailscale
-    |
-    v
-Proxmox management
-```
-
-This prevents the reverse proxy from becoming the general security boundary for infrastructure administration.
+This keeps the reverse proxy from becoming the general security boundary for remote administration.
 
 ## Monitoring
 
-The remote-access gateway is monitored in Checkmk as a production core-infrastructure Linux container.
+The remote-access gateway is monitored as production core infrastructure.
 
-The Checkmk Linux agent is registered with TLS. Agent registration uses the internal Checkmk backend path rather than the reverse-proxied web hostname because the agent receiver is a separate internal service and is not published through Nginx.
+Monitoring covers host health and the service state required to determine whether the gateway can perform its remote-access role. Agent communication is authenticated and remains an internal monitoring path rather than being published through the reverse proxy.
 
-Monitoring should cover at minimum:
-
-* host availability
-* CPU and memory state
-* filesystem state
-* systemd health
-* Tailscale daemon state
-* network reachability appropriate to the gateway role
+The public repository intentionally omits the monitoring object name, live address, registration identity, and internal receiver endpoint.
 
 ## Backup and recovery
 
-The gateway is included in the Core Infrastructure scheduled Proxmox backup policy.
+The gateway is included in workload-appropriate scheduled guest backup coverage.
 
-Backup coverage protects the guest operating system, Tailscale configuration state, routing configuration, Checkmk agent configuration, and other local system configuration captured by the guest backup.
+Recovery documentation focuses on the role and validation process rather than publishing the exact backup job, storage target, schedule, retention values, or live authentication state.
 
-Reusable authentication material and other secrets are not stored in the public repository.
+Restored gateways must be isolated during validation when duplicate network or overlay identity could conflict with production.
 
-Successful backup creation and controlled restore validation remain separate requirements. A restored gateway should be validated carefully because duplicate network identity or Tailscale state could conflict with the production gateway if both are online simultaneously.
+## Availability considerations
 
-## Failure domains
+The current deployment provides a single remote-access gateway. As with other single-instance infrastructure, loss of the hosting platform or upstream connectivity can make remote access unavailable.
 
-The initial subnet router runs as a guest on the same physical Proxmox host as the services it exposes remotely.
+A future independent gateway can be added if higher remote-access availability becomes important enough to justify additional infrastructure.
 
-This creates a known dependency:
-
-* if the Proxmox host is offline, the subnet router is also offline
-* if the home internet connection is unavailable, remote Tailscale access cannot reach the site
-* local LAN access remains independent of the Tailscale control path for services that support local access
-
-A future second physical server or other independent always-on device can provide a redundant subnet router if remote-access availability becomes important enough to justify additional infrastructure.
+The public documentation deliberately avoids mapping the exact shared failure domains of the live environment.
 
 ## Security principles
 
-1. Keep the subnet-router role separate from application workloads.
-2. Use an unprivileged container and grant only the device capability required for TUN networking.
-3. Do not publish Proxmox, SSH, databases, or internal agent ports directly to the WAN.
-4. Use explicit Tailscale Grants instead of an unrestricted allow-all policy.
+1. Keep the remote-access role separate from application workloads.
+2. Use the least privilege required for overlay networking.
+3. Do not publish administrative interfaces or backend services directly to the WAN.
+4. Use explicit access policy rather than an unrestricted allow-all model.
 5. Test denied paths as well as permitted paths.
-6. Keep backend infrastructure LAN-only unless remote access has a documented requirement.
-7. Do not publish live tailnet names, authentication keys, node addresses, private subnet details, or user-specific policy identities.
-8. Preserve a local console recovery path when changing remote-access or SSH controls.
+6. Keep backend infrastructure local unless remote access has a documented requirement.
+7. Do not publish live tailnet names, authentication keys, node addresses, private subnet details, user identities, or device-specific policy.
+8. Preserve a local recovery path when changing remote-access or SSH controls.
