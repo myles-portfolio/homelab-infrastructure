@@ -39,6 +39,10 @@ flowchart TB
         WildcardTLS[Wildcard TLS Certificate]
     end
 
+    subgraph RemoteAccess[Secure Remote Access Container]
+        Tailscale[Tailscale Subnet Router]
+    end
+
     subgraph Development[Development VM]
         SAM[Software Asset Management Application]
         DevPostgres[(PostgreSQL)]
@@ -59,6 +63,7 @@ flowchart TB
     end
 
     Internet --> Clients
+    Clients --> Tailscale
 
     Clients --> PiHole
     PiHole --> ReverseProxy
@@ -68,11 +73,17 @@ flowchart TB
     ReverseProxy --> Checkmk[Infrastructure Monitoring Backend]
     Clients --> Samba
 
+    Tailscale --> Proxmox
+    Tailscale --> ReverseProxy
+    Tailscale --> PiHole
+    Tailscale --> Checkmk
+
     Proxmox --> FileServices
     Proxmox --> MetricsVM
     Proxmox --> Passwords
     Proxmox --> DNSFiltering
     Proxmox --> ReverseProxy
+    Proxmox --> RemoteAccess
     Proxmox --> Development
     Proxmox --> HomeAutomation
     Proxmox --> KnowledgePlatform
@@ -116,7 +127,7 @@ The diagram is intentionally sanitized. Exact IP addresses, domains, ports, cred
 
 Proxmox VE provides guest lifecycle management, snapshots, console access, storage management, and QEMU Guest Agent integration for supported virtual machines.
 
-The Proxmox management interface is treated as private administrative infrastructure. Remote administration is planned through the secure overlay network rather than through the application reverse proxy.
+The Proxmox management interface is treated as private administrative infrastructure. Remote administration is provided through the secure Tailscale overlay rather than through the application reverse proxy.
 
 ### File services
 
@@ -144,20 +155,27 @@ A dedicated unprivileged Linux container hosts Nginx as the centralized reverse 
 
 The design uses a wildcard certificate issued through ACME DNS challenge validation. The certificate and its private key remain on the proxy rather than being distributed to every backend application. DNS provider credentials are stored outside source control.
 
-Service migration is intentionally incremental. Monitoring was migrated first and validated end to end before additional internal web applications are moved behind the proxy. Administrative access to the Proxmox hypervisor is intentionally excluded from this migration path and will use the secure overlay network instead.
+Service migration is intentionally incremental. Monitoring was migrated first and validated end to end before additional internal web applications are moved behind the proxy. Administrative access to the Proxmox hypervisor is intentionally excluded from this migration path and uses the secure overlay network instead.
 
-### Planned secure remote access
+### Secure remote access
 
-Tailscale has been selected as the overlay VPN for secure remote access. The target design uses a dedicated lightweight Linux container as a subnet router rather than installing the routing role on the hypervisor, reverse proxy, DNS service, or monitoring platform.
+A dedicated unprivileged Debian Linux container provides Tailscale subnet routing for authenticated encrypted remote access.
 
-The intended access model separates responsibilities:
+The implementation separates responsibilities:
 
-* Tailscale provides authenticated encrypted remote network access.
+* Tailscale provides authenticated private network reachability.
 * Nginx provides named HTTPS access and centralized TLS for selected private web applications.
-* Administrative interfaces such as Proxmox and SSH remain private and do not require reverse-proxy publication.
-* Backend services such as PostgreSQL, Prometheus, exporters, and monitoring agents remain local where practical.
+* Administrative interfaces such as Proxmox and selected SSH targets remain private and are reached through Tailscale.
+* Pi-hole administration is explicitly available over Tailscale while DNS service remains local infrastructure.
+* Backend services such as PostgreSQL, Prometheus, exporters, and monitoring agents remain LAN-only where practical.
 
-The initial subnet router will share the existing Proxmox host. A future second physical server or other independent infrastructure device could provide redundant remote access if higher availability becomes necessary.
+The gateway advertises the private IPv4 subnet and uses a deny-by-default Grant policy with explicit permitted paths. Positive and negative tests from an external network confirmed both intended reachability and intended denial behavior.
+
+The gateway is monitored in Checkmk and included in the Core Infrastructure scheduled backup policy.
+
+The subnet router shares the existing Proxmox host. A future second physical server or other independent infrastructure device could provide redundant remote access if higher availability becomes necessary.
+
+See [`../networking/tailscale-remote-access.md`](../networking/tailscale-remote-access.md).
 
 ### Home automation
 
@@ -196,6 +214,7 @@ The environment follows several recurring principles:
 7. **Keep source data independent of derived indexes.** Search indexes, embeddings, and other derived data should be reproducible from protected source material rather than becoming the only copy of important information.
 8. **Centralize ingress deliberately.** Reverse proxy and certificate lifecycle responsibilities are isolated from backend applications so service identity, TLS, and routing can evolve independently.
 9. **Separate remote access from application ingress.** Secure administrative reachability and HTTPS application presentation are different responsibilities and should not be coupled unnecessarily.
+10. **Validate denied paths.** Security controls are not considered proven only because intended access succeeds; restricted paths should also be tested.
 
 ## Example control path: HVAC
 
@@ -234,6 +253,7 @@ Backup strategy is workload-specific:
 * The private knowledge vault is synchronized to dedicated ZFS-backed homelab storage with file versioning enabled on the receiving side.
 * The RAG backend container is included in the development scheduled guest backup policy. Backup creation and controlled restore validation remain separate validation steps.
 * The reverse-proxy container is included in the core infrastructure scheduled guest backup policy. Backup creation and controlled restore validation remain separate validation steps.
+* The remote-access gateway is included in the core infrastructure scheduled guest backup policy. Restore testing must account for duplicate network or Tailscale identity risk.
 * Proxmox snapshots are used as temporary VM-level rollback protection when justified by the change.
 * Application data stored in Docker volumes is validated before container recreation.
 
