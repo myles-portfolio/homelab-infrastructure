@@ -32,6 +32,7 @@ This prevents guests from being omitted simply because they were missing from an
 | VM | Infrastructure monitoring | Debian, Checkmk site health, notification transport, monitoring recovery |
 | LXC | Personal knowledge / RAG backend | Debian, PostgreSQL, pgvector, ingestion service, API health, database connectivity |
 | LXC | Reverse proxy / TLS ingress | Debian, Nginx, certificate lifecycle, backend routing, SSH hardening, Checkmk agent health |
+| LXC | Secure remote access gateway | Debian, Tailscale subnet routing, route advertisement, access policy, Checkmk agent health |
 
 The former media-server container has been retired from the active inventory. Media hosting is deferred until dedicated storage, such as a NAS, is available.
 
@@ -94,13 +95,38 @@ Current implementation characteristics:
 
 The reverse proxy is treated as core infrastructure because multiple service access paths depend on it. It is now included in the core infrastructure scheduled backup policy. Certificate lifecycle monitoring and backup restore validation remain follow-up requirements.
 
-### Secure remote access direction
+### Secure remote access gateway
 
-Administrative remote access is being separated from application ingress. The target design uses Tailscale as an overlay VPN with a dedicated lightweight Linux subnet-router container.
+A dedicated unprivileged Debian 13 container now provides Tailscale subnet routing for authenticated encrypted remote access to private homelab services.
 
-The planned subnet router will run as a separate Proxmox guest rather than on the hypervisor, reverse proxy, Pi-hole, or monitoring platform. This preserves separation of duties while providing encrypted private access to administrative services.
+Sanitized starting allocation:
 
-Proxmox management itself is not planned for reverse-proxy publication. Remote administrative reachability will be provided through the overlay network instead.
+```text
+vCPU: 1
+RAM: 512 MB
+Swap: 512 MB
+Root disk: 8 GB
+Autostart: enabled
+```
+
+Current implementation characteristics:
+
+* dedicated subnet-router role with no application hosting
+* static LAN addressing
+* Linux TUN device passed into the unprivileged LXC with narrowly scoped permissions
+* nesting enabled for the Debian systemd environment
+* persistent IPv4 forwarding
+* private IPv4 subnet advertisement through Tailscale
+* no exit-node role
+* deny-by-default Tailscale Grants with explicit administrative and HTTPS paths
+* validated remote access to Proxmox, selected SSH targets, Pi-hole administration, and reverse-proxied HTTPS services
+* validated denial of selected backend and non-approved paths
+* Checkmk Linux agent registered with TLS
+* inclusion in the core infrastructure scheduled backup policy
+
+The gateway runs on the same physical Proxmox host as the services it exposes remotely. Remote access is therefore unavailable if the hypervisor is offline. A future independent host could provide redundant subnet routing if higher availability becomes necessary.
+
+Proxmox management itself is intentionally not published through Nginx. Remote administrative reachability is provided through Tailscale instead.
 
 ## Maintenance principles
 
@@ -116,9 +142,10 @@ Proxmox management itself is not planned for reverse-proxy publication. Remote a
 10. Validate hypervisor system-mail delivery when Postfix or notification configuration changes.
 11. Maintain trusted TLS on the Proxmox management interface and verify ACME renewal remains functional.
 12. Validate reverse-proxy routing, certificate trust, and dependent service access after Nginx maintenance.
-13. Remove temporary snapshots and installation media after validation.
-14. Confirm Checkmk returns to the expected final state before maintenance downtime is removed.
-15. Document deviations discovered during the maintenance window.
+13. Validate Tailscale daemon state, subnet-route advertisement, and intended access paths after remote-access gateway maintenance.
+14. Remove temporary snapshots and installation media after validation.
+15. Confirm Checkmk returns to the expected final state before maintenance downtime is removed.
+16. Document deviations discovered during the maintenance window.
 
 ## Application-level validation
 
@@ -138,6 +165,7 @@ Examples of service-specific validation include:
 * the knowledge-platform PostgreSQL monitoring remains healthy after maintenance
 * the knowledge-platform API and ingestion workflow are validated independently once those application components enter service
 * the reverse proxy listens on expected ports, presents the expected trusted certificate, routes each configured hostname to the correct backend, and remains green in Checkmk
+* the remote-access gateway remains connected to Tailscale, advertises the expected route, permits intended paths, denies restricted paths, and remains green in Checkmk
 
 ## Maintenance orchestration
 
