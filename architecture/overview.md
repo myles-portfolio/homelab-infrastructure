@@ -2,259 +2,147 @@
 
 ## Purpose
 
-This document provides a sanitized architectural view of the homelab represented in this repository. It is intentionally descriptive rather than exhaustive. Exact IP addressing, credentials, geofence boundaries, private DNS names, externally reachable endpoints, and other sensitive details are excluded.
+This document provides a sanitized architectural view of the homelab represented in this repository. It is intentionally descriptive rather than exhaustive.
 
-## Operations-focused architecture
+Exact IP addressing, credentials, private DNS names, externally reachable endpoints, guest identifiers, access-policy details, backup placement, and unnecessary implementation fingerprints are excluded.
 
-The diagram below shows the major Proxmox guests, primary application components, and selected dependency paths used for operations, maintenance, and troubleshooting.
+## High-level architecture
+
+The environment is centered on a Proxmox VE virtualization platform hosting dedicated infrastructure and application workloads.
 
 ```mermaid
 flowchart TB
     Internet[(Internet)]
-    Clients[Client Devices<br/>PCs, phones, tablets, IoT clients]
-    Proxmox[Proxmox VE Host]
+    Clients[Client Devices]
+    Hypervisor[Virtualization Platform]
 
-    subgraph FileServices[File Services Container]
-        Samba[Samba / CIFS]
-        HABackups[HA Backup Share]
-        VaultReplica[Knowledge Vault Replica]
-    end
-
-    subgraph MetricsVM[Metrics and Visualization VM]
-        Prometheus[Prometheus]
-        Grafana[Grafana]
-        NUTExporter[NUT Exporter]
-    end
-
-    subgraph Passwords[Password Manager Container]
-        Vaultwarden[Vaultwarden]
-    end
-
-    subgraph DNSFiltering[DNS / Filtering Container]
-        PiHole[Pi-hole]
-    end
-
-    subgraph ReverseProxy[Reverse Proxy Container]
-        Nginx[Nginx]
-        WildcardTLS[Wildcard TLS Certificate]
-    end
-
-    subgraph RemoteAccess[Secure Remote Access Container]
-        Tailscale[Tailscale Subnet Router]
-    end
-
-    subgraph Development[Development VM]
-        SAM[Software Asset Management Application]
-        DevPostgres[(PostgreSQL)]
-    end
-
-    subgraph HomeAutomation[Home Assistant VM]
-        HA[Home Assistant OS]
-        HVAC[Presence-aware HVAC]
-        Zigbee[Zigbee / IoT]
-        Alarm[Alarm.com Integration]
-        Backups[Backup Subsystem]
-    end
-
-    subgraph KnowledgePlatform[Personal Knowledge / RAG Container]
-        RAGAPI[Knowledge API]
-        Ingest[Markdown Ingestion]
-        RAGDB[(PostgreSQL + pgvector)]
-    end
+    DNS[DNS and Filtering]
+    Proxy[Reverse Proxy and TLS]
+    Remote[Secure Remote Access]
+    Monitoring[Monitoring and Observability]
+    Storage[File and Backup Services]
+    Apps[Private Applications]
+    Automation[Home Automation]
 
     Internet --> Clients
-    Clients --> Tailscale
-
-    Clients --> PiHole
-    PiHole --> ReverseProxy
-    ReverseProxy --> Vaultwarden
-    ReverseProxy --> Grafana
-    ReverseProxy --> HA
-    ReverseProxy --> Checkmk[Infrastructure Monitoring Backend]
-    Clients --> Samba
-
-    Tailscale --> Proxmox
-    Tailscale --> ReverseProxy
-    Tailscale --> PiHole
-    Tailscale --> Checkmk
-
-    Proxmox --> FileServices
-    Proxmox --> MetricsVM
-    Proxmox --> Passwords
-    Proxmox --> DNSFiltering
-    Proxmox --> ReverseProxy
-    Proxmox --> RemoteAccess
-    Proxmox --> Development
-    Proxmox --> HomeAutomation
-    Proxmox --> KnowledgePlatform
-
-    HA --> HVAC
-    HA --> Zigbee
-    HA --> Alarm
-    HA --> Backups
-    Backups --> HABackups
-    HABackups --> Samba
-
-    Prometheus --> NUTExporter
-    Grafana --> Prometheus
-
-    SAM --> DevPostgres
-
-    Clients --> VaultReplica
-    VaultReplica --> Ingest
-    Ingest --> RAGDB
-    RAGAPI --> RAGDB
-    RAGAPI --> Internet
+    Clients --> DNS
+    Clients --> Remote
+    DNS --> Proxy
+    Remote --> Hypervisor
+    Remote --> Proxy
+    Hypervisor --> DNS
+    Hypervisor --> Proxy
+    Hypervisor --> Remote
+    Hypervisor --> Monitoring
+    Hypervisor --> Storage
+    Hypervisor --> Apps
+    Hypervisor --> Automation
+    Proxy --> Apps
 ```
 
-Operations-focused view showing guest roles, major service components, and selected dependency paths.
-
-### Legend
-
-| Symbol / Label | Meaning |
-|---|---|
-| Linux container | Lightweight isolated service workload |
-| Virtual machine | Full guest operating system workload |
-| Cylinder shape | Persistent data store |
-| Arrow | Primary dependency or service flow |
-| Nested nodes | Applications or services hosted inside a guest |
-
-The diagram is intentionally sanitized. Exact IP addresses, domains, ports, credentials, guest IDs, and other sensitive details are omitted.
+This diagram intentionally shows functional domains rather than the complete live host and dependency map.
 
 ## Core infrastructure domains
 
 ### Virtualization
 
-Proxmox VE provides guest lifecycle management, snapshots, console access, storage management, and QEMU Guest Agent integration for supported virtual machines.
+Proxmox VE provides guest lifecycle management, console access, storage management, snapshots, and guest integration for supported virtual machines and containers.
 
-The Proxmox management interface is treated as private administrative infrastructure. Remote administration is provided through the secure Tailscale overlay rather than through the application reverse proxy.
+The virtualization management interface is treated as private administrative infrastructure. Remote administration uses the secure overlay network rather than public exposure through the application reverse proxy.
 
-### File services
+### File and backup services
 
-A dedicated Linux container provides Samba-based network storage. It is also used as an external backup target for selected services, including Home Assistant. A separate ZFS-backed dataset is mounted into this container for a synchronized replica of the private Obsidian knowledge vault. The replica is treated as protected source data rather than as application state.
+Dedicated storage services support internal file access and selected application recovery workflows.
 
-### Monitoring
+Authoritative source data and rebuildable application indexes are treated as separate recovery domains where practical. Public documentation avoids publishing exact dataset placement, mount relationships, backup target names, or physical storage topology.
 
-A dedicated Ubuntu VM hosts a Docker Compose monitoring stack consisting of Prometheus, Grafana, and a NUT exporter. Monitoring application health is validated independently of operating-system package state.
+### Monitoring and observability
 
-Checkmk runs separately as the primary infrastructure and service-state monitoring platform. Its web interface was the first internal service migrated behind the dedicated reverse proxy.
+Checkmk provides infrastructure and service-state monitoring, while Prometheus and Grafana provide time-series metrics and visualization.
 
-### Identity and secrets
-
-A dedicated container hosts a self-managed password manager. Application container updates are treated separately from guest operating-system maintenance.
+Monitoring application health is validated independently of operating-system package state. The monitoring platforms themselves are also treated as managed infrastructure with backup and recovery requirements.
 
 ### DNS and filtering
 
-A dedicated container provides local DNS and filtering services. Service validation includes resolution tests rather than package status alone.
+A dedicated internal DNS and filtering service provides local resolution and selected split-DNS behavior.
 
-Local DNS also directs selected internal service names to the dedicated reverse proxy rather than directly to backend applications.
+Internal service names can resolve to the reverse proxy where centralized HTTPS presentation is useful. Public documentation omits the live naming scheme and address assignments.
 
 ### Reverse proxy and TLS ingress
 
-A dedicated unprivileged Linux container hosts Nginx as the centralized reverse proxy and TLS termination layer for selected internal web services.
+A dedicated unprivileged Linux workload hosts Nginx as the centralized reverse proxy and TLS termination layer for selected private web applications.
 
-The design uses a wildcard certificate issued through ACME DNS challenge validation. The certificate and its private key remain on the proxy rather than being distributed to every backend application. DNS provider credentials are stored outside source control.
+A wildcard certificate is issued through ACME DNS challenge validation. Private key material and DNS-provider credentials remain isolated from backend applications and outside source control.
 
-Service migration is intentionally incremental. Monitoring was migrated first and validated end to end before additional internal web applications are moved behind the proxy. Administrative access to the Proxmox hypervisor is intentionally excluded from this migration path and uses the secure overlay network instead.
+Service migration is incremental so application routing and TLS behavior can be validated before broader adoption.
 
 ### Secure remote access
 
-A dedicated unprivileged Debian Linux container provides Tailscale subnet routing for authenticated encrypted remote access.
+A dedicated Linux workload provides Tailscale subnet routing for authenticated encrypted remote access.
 
-The implementation separates responsibilities:
+The design separates remote network reachability from application presentation:
 
-* Tailscale provides authenticated private network reachability.
-* Nginx provides named HTTPS access and centralized TLS for selected private web applications.
-* Administrative interfaces such as Proxmox and selected SSH targets remain private and are reached through Tailscale.
-* Pi-hole administration is explicitly available over Tailscale while DNS service remains local infrastructure.
-* Backend services such as PostgreSQL, Prometheus, exporters, and monitoring agents remain LAN-only where practical.
+* Tailscale provides authenticated private network access.
+* Nginx provides named HTTPS presentation for selected private applications.
+* Administrative services remain private and use explicit remote-access policy.
+* Backend-only services remain local unless a documented requirement changes.
 
-The gateway advertises the private IPv4 subnet and uses a deny-by-default Grant policy with explicit permitted paths. Positive and negative tests from an external network confirmed both intended reachability and intended denial behavior.
-
-The gateway is monitored in Checkmk and included in the Core Infrastructure scheduled backup policy.
-
-The subnet router shares the existing Proxmox host. A future second physical server or other independent infrastructure device could provide redundant remote access if higher availability becomes necessary.
+The access policy follows a deny-by-default model. Validation includes both permitted and denied paths from an external network.
 
 See [`../networking/tailscale-remote-access.md`](../networking/tailscale-remote-access.md).
 
 ### Home automation
 
-Home Assistant OS runs as a dedicated VM. It integrates local and cloud-connected devices, including Zigbee, environmental sensors, alarm-system entities, and climate control.
+Home Assistant runs as a dedicated appliance-style workload with local and cloud-connected integrations.
 
-Home Assistant is treated as an appliance-style workload. Updates, backups, and application validation are performed through Home Assistant rather than generic Linux package management.
+Updates, backups, and application validation are handled according to the appliance model rather than generic Linux maintenance assumptions.
 
-### Development workload
+### Development and private applications
 
-A dedicated Ubuntu VM hosts the development instance of a Software Asset Management application and PostgreSQL. Maintenance includes logical database backup, operating-system updates, database query validation, application validation, and QEMU Guest Agent checks.
+Development and private application workloads include database-backed services and internal tools.
 
-The application is treated as a private user-facing service. The target access model keeps remote reachability on the secure overlay network while allowing Nginx to provide a friendly trusted HTTPS path.
+User-facing applications can use the reverse proxy for trusted HTTPS while remote reachability remains controlled by the overlay network. Databases and other backend components remain private unless direct remote administration is explicitly required.
 
-### Personal knowledge and RAG platform
+### Personal knowledge and retrieval platform
 
-A dedicated Debian Linux container provides the backend runtime for a private-first personal knowledge system. The application architecture keeps the Obsidian Markdown vault authoritative while maintaining a rebuildable PostgreSQL and pgvector index for retrieval.
+A dedicated Linux workload provides the backend foundation for a private-first personal knowledge and retrieval system.
 
-The current backend foundation includes PostgreSQL and pgvector. Planned application services include Markdown ingestion, semantic retrieval, and a FastAPI-based query service. Embedding and language-model inference use external APIs during the initial implementation so the homelab does not need local GPU inference capacity.
-
-The synchronized vault replica and the derived RAG database are intentionally treated as separate recovery domains. The source Markdown should remain recoverable independently of the vector index.
+The design keeps source Markdown authoritative while treating database indexes, embeddings, and retrieval state as rebuildable derived data. Source content and derived state are protected through separate recovery considerations.
 
 ### Deferred media services
 
-The previous media-server workload has been retired from the active guest inventory. Media hosting is deferred until dedicated storage, such as a NAS, is available and the storage architecture can be designed around the workload rather than added incrementally to the current host.
+Media hosting is currently deferred until dedicated storage infrastructure is available and the storage architecture can be designed around that workload.
 
 ## Operational design principles
 
 The environment follows several recurring principles:
 
-1. **Inventory before maintenance.** The current Proxmox guest inventory is reconciled before each maintenance cycle so newer workloads are not omitted from older checklists.
-2. **Application validation matters.** A successful package upgrade is not considered sufficient evidence that the hosted service is healthy.
-3. **Separate rollback layers.** VM snapshots, application backups, database dumps, and Home Assistant backups serve different recovery purposes.
-4. **Prefer dedicated service accounts.** Machine-to-machine integrations use purpose-specific credentials where practical.
-5. **Keep public documentation sanitized.** The portfolio documents architecture and reasoning without publishing a useful attack map of the live environment.
-6. **Separate deterministic and dynamic automation.** Predictable routines are scheduled explicitly, while presence-aware automations handle deviations from the expected state.
-7. **Keep source data independent of derived indexes.** Search indexes, embeddings, and other derived data should be reproducible from protected source material rather than becoming the only copy of important information.
-8. **Centralize ingress deliberately.** Reverse proxy and certificate lifecycle responsibilities are isolated from backend applications so service identity, TLS, and routing can evolve independently.
-9. **Separate remote access from application ingress.** Secure administrative reachability and HTTPS application presentation are different responsibilities and should not be coupled unnecessarily.
-10. **Validate denied paths.** Security controls are not considered proven only because intended access succeeds; restricted paths should also be tested.
-
-## Example control path: HVAC
-
-```text
-Phone location
-    |
-    v
-Home Assistant person entity
-    |
-    v
-Neighborhood zone logic
-    |
-    +--> nearby / returned --> comfort target
-    |
-    +--> away for threshold --> away target
-                                |
-Weekly Scheduler ---------------+
-                                v
-                       Versatile Thermostat
-                                |
-                                v
-                            Alarm.com
-                                |
-                                v
-                       Physical thermostat
-```
-
-This design keeps the physical thermostat integration intact while moving routine scheduling and presence-aware control into Home Assistant.
+1. **Inventory before maintenance.** Reconcile the current guest inventory before maintenance so newer workloads are not omitted from older procedures.
+2. **Application validation matters.** Package-manager success is not sufficient evidence that a hosted service is healthy.
+3. **Separate rollback layers.** Guest snapshots, application backups, database exports, and secondary copies address different failure modes.
+4. **Prefer dedicated service identities.** Machine-to-machine integrations use purpose-specific credentials where practical.
+5. **Keep public documentation sanitized.** Explain engineering decisions without publishing a useful attack map or recovery map.
+6. **Separate deterministic and dynamic automation.** Predictable schedules and state-dependent automation are handled independently where that improves clarity.
+7. **Keep source data independent of derived indexes.** Rebuildable search or retrieval state should not become the only copy of important information.
+8. **Centralize ingress deliberately.** Reverse proxy and certificate responsibilities are isolated from backend applications.
+9. **Separate remote access from application ingress.** Administrative reachability and HTTPS presentation are different responsibilities.
+10. **Validate denied paths.** Security controls are tested for both intended access and intended restriction.
 
 ## Backup model
 
-Backup strategy is workload-specific:
+The public architecture describes recovery principles rather than the exact live backup topology.
 
-* Home Assistant keeps local backups and writes a second copy to dedicated Samba network storage.
-* PostgreSQL development data receives a logical database dump before higher-risk maintenance.
-* The private knowledge vault is synchronized to dedicated ZFS-backed homelab storage with file versioning enabled on the receiving side.
-* The RAG backend container is included in the development scheduled guest backup policy. Backup creation and controlled restore validation remain separate validation steps.
-* The reverse-proxy container is included in the core infrastructure scheduled guest backup policy. Backup creation and controlled restore validation remain separate validation steps.
-* The remote-access gateway is included in the core infrastructure scheduled guest backup policy. Restore testing must account for duplicate network or Tailscale identity risk.
-* Proxmox snapshots are used as temporary VM-level rollback protection when justified by the change.
-* Application data stored in Docker volumes is validated before container recreation.
+The environment uses a combination of:
 
-The intent is defense in depth rather than relying on a single recovery mechanism.
+* scheduled guest backups
+* short-lived snapshots for selected maintenance
+* application-native backups
+* logical database exports where appropriate
+* persistent application data
+* secondary copies for selected workloads
+
+Backup creation and recoverability are treated as separate validation problems. Controlled restore testing is used to prove recovery behavior where practical.
+
+Exact schedules, retention values, storage locations, physical disk relationships, workload-to-job mappings, and known shared failure domains are intentionally omitted from the public repository.
+
+See [`../backup-recovery/README.md`](../backup-recovery/README.md) for the sanitized recovery model.
