@@ -57,11 +57,14 @@ Validated coverage includes:
 * contact-group-based notification routing
 * HTML email notification delivery through Postfix and a managed SMTP relay
 * TLS-registered Linux agent monitoring for the dedicated Nginx reverse-proxy container
+* TLS-registered Linux agent monitoring for the dedicated Tailscale remote-access gateway
 * active DNS validation after migrating monitored web access through the reverse proxy
 
 The personal knowledge and RAG backend is onboarded through the standard Linux agent and PostgreSQL plug-in workflow. Host, filesystem, database, and PostgreSQL health monitoring are active, while application-level API and ingestion checks remain future work until those services enter operation.
 
-The dedicated reverse-proxy container is also onboarded as core infrastructure. Monitoring validates host health independently from the applications routed through it. Certificate-expiration monitoring remains a planned addition so TLS lifecycle failures can be detected before they affect dependent services.
+The dedicated reverse-proxy container is onboarded as core infrastructure. Monitoring validates host health independently from the applications routed through it. Certificate-expiration monitoring remains a planned addition so TLS lifecycle failures can be detected before they affect dependent services.
+
+The dedicated remote-access gateway is also onboarded as production core infrastructure. Its Checkmk Linux agent is registered with TLS. Monitoring should distinguish host and systemd health from the higher-level Tailscale routing and policy behavior that is validated through network tests and operational checks.
 
 See [`checkmk/README.md`](checkmk/README.md) for the Checkmk documentation index.
 
@@ -113,6 +116,8 @@ For Checkmk, validation may include:
 
 For reverse-proxy changes, monitoring validation should also confirm that DNS active checks reflect the new ingress address and that stale host-level or local DNS records do not create duplicate answers.
 
+For the remote-access gateway, validation should include host health, Checkmk agent connectivity, Tailscale daemon state, route advertisement, permitted remote paths, and at least one denied path that should remain local-only.
+
 For database-backed application services, validation should distinguish guest health from database availability and user-facing application health.
 
 For Prometheus and Grafana, validation should distinguish metrics collection, exporter health, Prometheus target state, query behavior, and dashboard availability.
@@ -137,4 +142,5 @@ For Prometheus and Grafana, validation should distinguish metrics collection, ex
 * [`checkmk/README.md`](checkmk/README.md) for Checkmk-specific documentation
 * [`alerting-roadmap.md`](alerting-roadmap.md) for cross-platform alert ownership and future alerting work
 * [`../networking/reverse-proxy-pattern.md`](../networking/reverse-proxy-pattern.md) for the centralized ingress and TLS pattern
+* [`../networking/tailscale-remote-access.md`](../networking/tailscale-remote-access.md) for the secure remote-access pattern
 * [`../proxmox/runbooks/monitoring-vm-maintenance.md`](../proxmox/runbooks/monitoring-vm-maintenance.md) for the existing Prometheus and Grafana VM maintenance workflow
