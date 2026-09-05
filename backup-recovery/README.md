@@ -32,7 +32,7 @@ Current job groupings include:
 
 New infrastructure workloads are not considered fully operational until their backup scope is reviewed and added to the appropriate scheduled job.
 
-The reverse-proxy container is now included in the core infrastructure backup policy. The personal knowledge and RAG backend is now included in the development backup policy. In both cases, successful scheduled backup creation and controlled restore validation remain separate validation requirements.
+The reverse-proxy container and remote-access gateway are included in the core infrastructure backup policy. The personal knowledge and RAG backend is included in the development backup policy. In all cases, successful scheduled backup creation and controlled restore validation remain separate validation requirements.
 
 Snapshot mode is used where it works reliably. The file-services container uses Stop mode because repeated Snapshot-mode attempts stalled during snapshot creation, while Stop mode completed successfully and returned the service to normal operation.
 
@@ -104,7 +104,24 @@ Its recovery scope includes:
 
 The DNS provider API credential and private key material are not stored in the public repository. Recovery documentation should preserve the process for re-establishing those secrets without embedding them in source control.
 
-The guest is now covered by the core infrastructure scheduled backup policy. A documented DNS rollback path remains useful because it provides service continuity if the reverse proxy fails even when a recoverable backup exists.
+The guest is covered by the core infrastructure scheduled backup policy. A documented DNS rollback path remains useful because it provides service continuity if the reverse proxy fails even when a recoverable backup exists.
+
+### Remote-access gateway state
+
+The dedicated Tailscale subnet-router container is also treated as core infrastructure.
+
+Its recovery scope includes:
+
+* operating-system configuration
+* persistent IP-forwarding configuration
+* Tailscale daemon and local state
+* LXC-specific TUN access requirements documented outside the guest backup
+* Checkmk agent configuration
+* local administrative hardening
+
+Reusable authentication material and live Tailscale access-policy details are not stored in the public repository.
+
+A restore must be isolated carefully because duplicate Tailscale identity or network state can conflict with the production gateway if both are active simultaneously. Recovery validation should therefore confirm guest startup and local configuration before introducing the restored node to the production network or tailnet.
 
 ### Network storage
 
@@ -191,6 +208,7 @@ Other recovery-layer validation examples include:
 * Docker services return with persistent application state intact after recreation
 * Samba backup destination accepts an authenticated write
 * reverse-proxy configuration and certificate state are present after a controlled guest restore
+* remote-access gateway configuration can be inspected safely in an isolated restore without duplicating active network identity
 
 ## Recovery decision model
 
@@ -231,7 +249,7 @@ Restoring an entire VM when only a database needs recovery creates unnecessary i
 
 ## Current improvement areas
 
-Workload-specific scheduled Proxmox backup coverage is in place for the established guest inventory, including the reverse proxy and personal knowledge backend. The restore workflow has been validated successfully with a critical monitoring VM.
+Workload-specific scheduled Proxmox backup coverage is in place for the established guest inventory, including the reverse proxy, remote-access gateway, and personal knowledge backend. The restore workflow has been validated successfully with a critical monitoring VM.
 
 Additional planned work includes:
 
