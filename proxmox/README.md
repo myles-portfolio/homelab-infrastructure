@@ -6,143 +6,106 @@ This section documents sanitized maintenance and service-validation practices fo
 
 The operating model treats the hypervisor and each guest as separate maintenance domains. A successful package upgrade is not considered sufficient by itself. Each guest must also pass application-level validation appropriate to its role.
 
-Planned maintenance on monitored infrastructure also requires Checkmk scheduled downtime before intentional disruption. This keeps maintenance-generated state changes from producing actionable alerts while preserving normal monitoring for systems outside the maintenance scope.
+Planned maintenance on monitored infrastructure also uses Checkmk scheduled downtime before intentional disruption so maintenance-generated state changes do not create actionable alerts.
 
 ## Guest inventory model
 
-Every maintenance cycle begins by reconciling the live Proxmox guest inventory against the runbook. Each guest is explicitly classified as one of:
+Every maintenance cycle begins by reconciling the live Proxmox guest inventory against the runbook. Each guest is classified as one of:
 
 * maintain now
 * intentionally stopped
 * intentionally excluded
 * application-specific maintenance required
 
-This prevents guests from being omitted simply because they were missing from an older checklist.
+This prevents workloads from being omitted simply because an older checklist did not include them.
 
-### Current sanitized inventory
+### Sanitized workload inventory
+
+The public repository documents workload categories rather than live guest identifiers, hostnames, addresses, exact resource allocations, or software patch levels.
 
 | Guest type | Role | Maintenance focus |
 |---|---|---|
-| LXC | File services | OS packages, file-sharing services, client validation |
-| VM | Metrics and visualization | Ubuntu, Docker, Prometheus, Grafana, NUT exporter, QEMU Guest Agent |
-| LXC | Password manager | OS packages plus Vaultwarden image refresh, recreation, and client validation |
-| LXC | DNS / filtering | OS packages plus Pi-hole application and DNS validation |
-| VM | Software Asset Management development workload | Ubuntu, PostgreSQL, application database backup, application validation, query validation |
-| VM | Home automation | Home Assistant-specific maintenance, backup, and integration validation |
-| VM | Infrastructure monitoring | Debian, Checkmk site health, notification transport, monitoring recovery |
-| LXC | Personal knowledge / RAG backend | Debian, PostgreSQL, pgvector, ingestion service, API health, database connectivity |
-| LXC | Reverse proxy / TLS ingress | Debian, Nginx, certificate lifecycle, backend routing, SSH hardening, Checkmk agent health |
-| LXC | Secure remote access gateway | Debian, Tailscale subnet routing, route advertisement, access policy, Checkmk agent health |
+| Linux container | File services | OS packages, file-sharing services, client validation |
+| Virtual machine | Metrics and visualization | Linux, container runtime, metrics stack, visualization, guest integration |
+| Linux container | Password management | OS packages, application refresh, recreation, client validation |
+| Linux container | DNS and filtering | OS packages, application health, DNS validation |
+| Virtual machine | Development application | Linux, database, application backup, query and workflow validation |
+| Virtual machine | Home automation | Appliance-specific maintenance, backup, integration validation |
+| Virtual machine | Infrastructure monitoring | Monitoring-site health, notifications, monitoring recovery |
+| Linux container | Personal knowledge and retrieval | Database, vector extension, ingestion, API, monitoring |
+| Linux container | Reverse proxy and TLS ingress | Nginx, certificate lifecycle, routing, SSH hardening, monitoring |
+| Linux container | Secure remote access | Overlay networking, route advertisement, access policy, monitoring |
 
-The former media-server container has been retired from the active inventory. Media hosting is deferred until dedicated storage, such as a NAS, is available.
+Media hosting is currently deferred until dedicated storage infrastructure is available.
 
-The public inventory intentionally omits live Proxmox guest IDs, hostnames, and addresses. Operational procedures use placeholders such as `<vmid>` and `<ctid>` where an identifier is required.
+## Workload-specific operating patterns
 
-### Personal knowledge / RAG backend
+### Personal knowledge and retrieval backend
 
-A dedicated unprivileged Debian 13 container now provides the infrastructure foundation for a private-first personal knowledge and retrieval system.
+A dedicated unprivileged Linux container provides the infrastructure foundation for a private-first personal knowledge and retrieval system.
 
-Sanitized starting allocation:
+The public documentation intentionally omits exact guest sizing, operating-system patch level, database version, vector-extension version, addresses, credentials, and storage paths.
 
-```text
-vCPU: 2
-RAM: 2 GB
-Swap: 512 MB
-Root disk: 32 GB
-Autostart: enabled
-```
+Operational concerns include:
 
-Current infrastructure components:
+* database availability and authenticated application access
+* vector-extension availability
+* filesystem and systemd health
+* rebuildability of derived retrieval data from protected source content
+* independent monitoring of host and database health
+* application-specific API and ingestion checks as those services enter operation
+* workload-appropriate backup coverage and later restore validation
 
-* PostgreSQL 17
-* pgvector 0.8.0
-* dedicated application database and non-superuser database identity
-* LAN-restricted database access for development
-* Checkmk Linux agent with TLS registration
-* Checkmk PostgreSQL agent plug-in for database health and performance checks
-* future Python ingestion and FastAPI application services
+### Reverse proxy and TLS ingress
 
-The source knowledge vault is stored separately on ZFS-backed storage and synchronized through the file-services workload. The RAG database is derived state and should remain rebuildable from protected source Markdown. Exact addresses, database credentials, vault paths, and guest identifiers are intentionally excluded from this repository.
+A dedicated unprivileged Linux container hosts Nginx as the central reverse proxy and TLS termination layer for selected internal services.
 
-Checkmk onboarding is complete for host-level and PostgreSQL monitoring. Current coverage includes availability, CPU, memory, filesystem, systemd state, PostgreSQL instance health, connection metrics, database size and statistics, locks, process counts, query duration, bloat, analyze, and vacuum state. Notification routing and delivery have also been validated. Application-specific RAG API and ingestion checks remain future work until those services enter operation.
+Public documentation preserves the security and operating pattern without publishing the live host identity, exact sizing, listener inventory, certificate names, backend addresses, or SSH configuration values.
 
-The RAG backend is now included in the scheduled development backup policy. Successful backup creation and controlled restore validation remain separate recovery-validation tasks.
+Operational characteristics include:
 
-### Reverse proxy / TLS ingress
-
-A dedicated unprivileged Debian 13 container now hosts Nginx as the central reverse proxy and TLS termination layer for selected internal services.
-
-Sanitized starting allocation:
-
-```text
-vCPU: 1
-RAM: 1 GB
-Swap: 512 MB
-Root disk: 8 GB
-Autostart: enabled
-```
-
-Current implementation characteristics:
-
-* Nginx reverse proxy with hostname based routing
-* wildcard certificate issued through ACME DNS challenge validation
-* non-root administrative account with Ed25519 key based SSH authentication
-* direct root password SSH disabled
-* password based SSH disabled after validating a second key-authenticated session
-* unnecessary local mail service removed from the workload
-* Checkmk Linux agent with TLS registration
-* service migration performed incrementally, with the monitoring web interface used as the first production validation target
-
-The reverse proxy is treated as core infrastructure because multiple service access paths depend on it. It is now included in the core infrastructure scheduled backup policy. Certificate lifecycle monitoring and backup restore validation remain follow-up requirements.
+* hostname-based routing
+* wildcard certificate lifecycle through ACME DNS validation
+* non-root administration and key-based SSH
+* removal or disabling of unnecessary services
+* TLS-registered Checkmk monitoring
+* incremental application migration and rollback validation
+* scheduled guest backup coverage
 
 ### Secure remote access gateway
 
-A dedicated unprivileged Debian 13 container now provides Tailscale subnet routing for authenticated encrypted remote access to private homelab services.
+A dedicated unprivileged Linux container provides Tailscale subnet routing for authenticated encrypted remote access.
 
-Sanitized starting allocation:
+The public repository documents the role without exposing live network ranges, route advertisements, exact policy rules, guest sizing, device identities, or detailed shared failure domains.
 
-```text
-vCPU: 1
-RAM: 512 MB
-Swap: 512 MB
-Root disk: 8 GB
-Autostart: enabled
-```
-
-Current implementation characteristics:
+Operational characteristics include:
 
 * dedicated subnet-router role with no application hosting
-* static LAN addressing
-* Linux TUN device passed into the unprivileged LXC with narrowly scoped permissions
-* nesting enabled for the Debian systemd environment
-* persistent IPv4 forwarding
-* private IPv4 subnet advertisement through Tailscale
-* no exit-node role
-* deny-by-default Tailscale Grants with explicit administrative and HTTPS paths
-* validated remote access to Proxmox, selected SSH targets, Pi-hole administration, and reverse-proxied HTTPS services
-* validated denial of selected backend and non-approved paths
-* Checkmk Linux agent registered with TLS
-* inclusion in the core infrastructure scheduled backup policy
+* least-privilege support for overlay networking
+* persistent forwarding required for the selected private address family
+* no general-purpose exit-node role
+* deny-by-default remote-access policy with explicit allowed paths
+* both positive and negative access validation
+* TLS-registered Checkmk monitoring
+* scheduled guest backup coverage
 
-The gateway runs on the same physical Proxmox host as the services it exposes remotely. Remote access is therefore unavailable if the hypervisor is offline. A future independent host could provide redundant subnet routing if higher availability becomes necessary.
-
-Proxmox management itself is intentionally not published through Nginx. Remote administrative reachability is provided through Tailscale instead.
+Proxmox management is intentionally not published through Nginx. Remote administrative reachability uses the secure overlay network instead.
 
 ## Maintenance principles
 
-1. Schedule Checkmk downtime for every monitored host that will be intentionally disrupted.
+1. Schedule Checkmk downtime for monitored hosts that will be intentionally disrupted.
 2. Reconcile the actual guest inventory before maintenance.
 3. Record intentionally stopped or excluded guests rather than silently skipping them.
-4. Take rollback protection when the change risk justifies it.
-5. Check storage health before generating substantial snapshot or upgrade writes.
-6. Update the guest operating system separately from application containers when practical.
+4. Take rollback protection when change risk justifies it.
+5. Check storage health before generating substantial maintenance writes.
+6. Update guest operating systems separately from application containers when practical.
 7. Validate systemd health after package changes.
 8. Validate application services after operating-system changes.
-9. Confirm Proxmox guest communication where QEMU Guest Agent is expected.
-10. Validate hypervisor system-mail delivery when Postfix or notification configuration changes.
-11. Maintain trusted TLS on the Proxmox management interface and verify ACME renewal remains functional.
-12. Validate reverse-proxy routing, certificate trust, and dependent service access after Nginx maintenance.
-13. Validate Tailscale daemon state, subnet-route advertisement, and intended access paths after remote-access gateway maintenance.
+9. Confirm guest integration where expected.
+10. Validate system-mail delivery when mail configuration changes.
+11. Maintain trusted TLS on the hypervisor management interface.
+12. Validate reverse-proxy routing and certificate trust after Nginx maintenance.
+13. Validate remote-access service state and intended policy behavior after gateway maintenance.
 14. Remove temporary snapshots and installation media after validation.
 15. Confirm Checkmk returns to the expected final state before maintenance downtime is removed.
 16. Document deviations discovered during the maintenance window.
@@ -153,19 +116,17 @@ Examples of service-specific validation include:
 
 * file shares are reachable from a client
 * DNS resolves expected records
-* password manager web and extension access succeeds
+* password-management clients can authenticate and operate normally
 * monitoring targets are healthy and dashboards load
-* PostgreSQL accepts application database queries after maintenance
-* Software Asset Management application workflows remain functional after maintenance
-* Home Assistant integrations, automations, dashboards, and backup locations remain operational
-* Checkmk host and service state, site health, and notification delivery remain operational
-* Proxmox system mail successfully leaves the host through the authenticated relay and the deferred queue remains empty
-* the Proxmox management interface presents a trusted certificate for its configured management FQDN
-* the knowledge-platform database accepts authenticated application connections and the vector extension remains available
-* the knowledge-platform PostgreSQL monitoring remains healthy after maintenance
-* the knowledge-platform API and ingestion workflow are validated independently once those application components enter service
-* the reverse proxy listens on expected ports, presents the expected trusted certificate, routes each configured hostname to the correct backend, and remains green in Checkmk
-* the remote-access gateway remains connected to Tailscale, advertises the expected route, permits intended paths, denies restricted paths, and remains green in Checkmk
+* application databases accept expected queries
+* development application workflows remain functional
+* Home Assistant integrations, automations, dashboards, and backup targets remain operational
+* Checkmk site health and notification delivery remain operational
+* system mail leaves the hypervisor through the configured relay path
+* the hypervisor management interface presents trusted TLS
+* knowledge-platform database and retrieval dependencies remain available
+* the reverse proxy presents expected TLS and routes configured names correctly
+* the remote-access gateway permits intended paths and rejects restricted paths
 
 ## Maintenance orchestration
 
