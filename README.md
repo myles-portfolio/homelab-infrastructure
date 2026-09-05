@@ -35,13 +35,14 @@ The following sections provide the main entry points into the homelab environmen
 * ACME DNS challenge validation without inbound HTTP exposure
 * Tailscale overlay networking and subnet routing for secure remote administration
 * deny-by-default remote access policy with explicit service reachability
-* Service dependency mapping and layered network troubleshooting
-* Workload-specific backup and rollback design
+* centralized private application ingress without direct application-host overlay membership where unnecessary
+* service dependency mapping and layered network troubleshooting
+* workload-specific backup and rollback design
 * SSH key-based administration and staged access hardening
-* Security hardening and exposure reduction patterns
-* Change management and maintenance documentation
-* Validation of application health beyond package-manager success
-* Public technical documentation with deliberate security sanitization
+* security hardening and exposure reduction patterns
+* change management and maintenance documentation
+* validation of application health beyond package-manager success
+* public technical documentation with deliberate security sanitization
 
 ## Homelab architecture
 
@@ -105,11 +106,13 @@ For a more detailed operational view, see [`architecture/overview.md`](architect
 
 ### Dedicated reverse proxy and wildcard TLS
 
-A dedicated unprivileged Debian container hosts Nginx as the centralized ingress and TLS termination layer for selected internal web services.
+A dedicated unprivileged Linux container hosts Nginx as the centralized ingress and TLS termination layer for selected internal web services.
 
 The implementation uses a wildcard certificate issued through ACME DNS challenge validation. The private key is kept on the proxy rather than copied to every backend service, while DNS provider credentials remain outside source control.
 
-The infrastructure monitoring web interface was the first production migration behind the proxy. Additional private web applications can continue to use this pattern where friendly HTTPS access is useful.
+The infrastructure monitoring web interface was the first production migration behind the proxy. The same pattern has since been validated for another private application, including native-client access over the secure overlay and split DNS.
+
+Where an application-local TLS proxy no longer provides a distinct benefit, it can be removed after the centralized Nginx path is proven. This reduces duplicate certificate and proxy configuration on backend hosts.
 
 ### Secure remote administration
 
@@ -117,9 +120,11 @@ Administrative remote access is separated from application ingress.
 
 Tailscale is deployed as the overlay VPN through a dedicated unprivileged Linux subnet-router container. Remote clients can reach approved private administrative services without publishing those interfaces through Nginx or opening inbound WAN ports.
 
-The remote-access policy uses explicit Grants with deny-by-default behavior. Validation from an external network confirmed approved access to Proxmox, the reverse proxy, Pi-hole administration, and selected SSH targets while selected backend and non-approved paths remained unavailable.
+The remote-access policy uses explicit Grants with deny-by-default behavior. Validation from an external network confirmed approved administrative and HTTPS paths while selected backend and non-approved paths remained unavailable.
 
-The gateway is monitored through Checkmk and included in the Core Infrastructure scheduled backup policy.
+Split DNS allows remote clients to use the same private service names as LAN clients. Private application hosts do not require direct Tailscale membership when remote access is already provided through the subnet router and reverse proxy.
+
+The gateway is monitored through Checkmk and included in the appropriate scheduled backup policy.
 
 Proxmox management is intentionally excluded from the reverse-proxy migration path. Remote administration uses Tailscale instead.
 
@@ -133,7 +138,7 @@ The personal knowledge and RAG backend remains a private-first application platf
 
 ### Media services
 
-The previous Plex media-server container has been retired. Media hosting is deferred until dedicated storage, such as a NAS, is available and the storage architecture can be designed appropriately.
+The previous media-server container has been retired. Media hosting is deferred until dedicated storage is available and the storage architecture can be designed appropriately.
 
 ## Backup and recovery
 
@@ -141,14 +146,14 @@ The backup model uses multiple recovery layers so each failure can be addressed 
 
 Examples include:
 
-* short-lived Proxmox snapshots for fast VM rollback
-* Home Assistant local and external network backups
-* PostgreSQL logical dumps for database-level recovery
-* Docker persistent storage for stateful application data
-* dedicated Samba storage for backup copies outside protected workloads
-* scheduled Proxmox guest backups for infrastructure workloads
+* short-lived hypervisor snapshots for fast rollback
+* application-level backups where supported
+* logical database dumps for database-level recovery
+* persistent application storage for stateful containerized services
+* additional network backup copies for selected workloads
+* scheduled guest backups for infrastructure workloads
 
-The reverse-proxy container and remote-access gateway are included in the core infrastructure backup policy. The personal knowledge and RAG backend is included in the development backup policy. Backup creation and controlled restore validation remain distinct validation steps.
+Backup creation and controlled restore validation remain distinct validation steps.
 
 See [`backup-recovery/README.md`](backup-recovery/README.md) for the architecture and recovery decision model.
 
@@ -169,7 +174,8 @@ A few principles recur throughout this environment:
 11. Keep wildcard private keys and DNS provider credentials isolated from backend applications and source control.
 12. Separate remote administrative access from application ingress.
 13. Validate denied paths as well as permitted paths when testing access controls.
-14. Keep public documentation useful to reviewers without exposing the live environment unnecessarily.
+14. Remove duplicate infrastructure roles from application hosts when centralized services already provide the capability.
+15. Keep public documentation useful to reviewers without exposing the live environment unnecessarily.
 
 ## Current technology areas
 
@@ -183,7 +189,7 @@ A few principles recur throughout this environment:
 | Data | PostgreSQL, pgvector, logical backups, query validation |
 | Network services | Pi-hole, split DNS, Samba, Nginx reverse proxy, TLS termination, Tailscale subnet routing |
 | PKI and certificates | ACME, DNS challenge validation, wildcard certificates, certificate lifecycle management |
-| Backup and recovery | Proxmox guest backups, snapshots, Home Assistant backups, Samba backup copies, PostgreSQL dumps |
+| Backup and recovery | guest backups, snapshots, application backups, network backup copies, logical database dumps |
 | Security | Service accounts, exposure reduction, SSH hardening, trusted proxies, Tailscale Grants, secrets handling, recovery controls |
 | Identity and secrets | Vaultwarden, dedicated service identities |
 | Home automation | Home Assistant OS, HACS, Zigbee, climate automation |
@@ -198,7 +204,7 @@ The dedicated reverse-proxy isolation milestone and initial secure remote-access
 * add certificate-expiration monitoring
 * migrate additional private web applications through the proxy where appropriate
 * continue broader SSH hardening
-* improve independent backup resilience when additional hardware or a NAS becomes practical
+* improve independent backup resilience when additional hardware becomes practical
 * consider redundant subnet routing after independent always-on infrastructure is available
 * add further observability depth
 
