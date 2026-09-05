@@ -10,7 +10,7 @@ The following sections provide the main entry points into the homelab environmen
 
 1. **Architecture:** [`architecture/overview.md`](architecture/overview.md) provides the sanitized system topology, workload roles, backup model, and design principles.
 2. **Systems operations:** [`proxmox/README.md`](proxmox/README.md) explains the maintenance model and links to the hypervisor, guest, and full-environment maintenance procedures.
-3. **Networking:** [`networking/README.md`](networking/README.md) documents DNS, split DNS, the dedicated Nginx reverse proxy, wildcard TLS, secure remote-access direction, dependencies, and troubleshooting.
+3. **Networking:** [`networking/README.md`](networking/README.md) documents DNS, split DNS, the dedicated Nginx reverse proxy, wildcard TLS, Tailscale secure remote access, dependencies, and troubleshooting.
 4. **Monitoring:** [`monitoring/README.md`](monitoring/README.md) explains the Checkmk, Prometheus, Grafana, exporter, and alert-ownership model.
 5. **Backup and recovery:** [`backup-recovery/README.md`](backup-recovery/README.md) documents the layered recovery model across snapshots, application backups, logical database dumps, and network backup copies.
 6. **Security:** [`security/README.md`](security/README.md) describes exposure reduction, service accounts, secrets handling, backup resilience, and hardening priorities.
@@ -33,7 +33,8 @@ The following sections provide the main entry points into the homelab environmen
 * Samba-based network storage and dedicated service accounts
 * DNS, split DNS, centralized Nginx reverse proxy, and wildcard TLS architecture
 * ACME DNS challenge validation without inbound HTTP exposure
-* Planned Tailscale overlay networking for secure remote administration
+* Tailscale overlay networking and subnet routing for secure remote administration
+* deny-by-default remote access policy with explicit service reachability
 * Service dependency mapping and layered network troubleshooting
 * Workload-specific backup and rollback design
 * SSH key-based administration and staged access hardening
@@ -61,7 +62,7 @@ flowchart TB
     Development[Software Asset Management Development]
     Knowledge[Knowledge / RAG Backend]
     HomeAutomation[Home Automation]
-    RemoteAccess[Planned Tailscale Subnet Router]
+    RemoteAccess[Tailscale Subnet Router]
 
     Internet --> Clients
 
@@ -84,18 +85,19 @@ flowchart TB
     Proxy --> HomeAutomation
     Clients --> FileServices
 
+    Clients --> RemoteAccess
     RemoteAccess --> Proxmox
     RemoteAccess --> Proxy
-    RemoteAccess --> Checkmk
     RemoteAccess --> DNS
 
     HomeAutomation --> FileServices
     Checkmk --> Proxmox
     Checkmk --> Proxy
+    Checkmk --> RemoteAccess
     Metrics --> Proxmox
 ```
 
-High-level view of the major functional domains hosted on the Proxmox platform. The remote-access node is a planned workload and is not yet deployed.
+High-level view of the major functional domains hosted on the Proxmox platform.
 
 For a more detailed operational view, see [`architecture/overview.md`](architecture/overview.md).
 
@@ -111,15 +113,21 @@ The infrastructure monitoring web interface was the first production migration b
 
 ### Secure remote administration
 
-Administrative remote access is being separated from application ingress.
+Administrative remote access is separated from application ingress.
 
-Tailscale has been selected as the overlay VPN. The target design uses a dedicated lightweight Linux container as a subnet router so remote clients can reach private administrative services without publishing those interfaces through Nginx or opening inbound WAN ports.
+Tailscale is deployed as the overlay VPN through a dedicated unprivileged Linux subnet-router container. Remote clients can reach approved private administrative services without publishing those interfaces through Nginx or opening inbound WAN ports.
 
-Proxmox management is intentionally excluded from the reverse-proxy migration path. Remote administration will use Tailscale instead.
+The remote-access policy uses explicit Grants with deny-by-default behavior. Validation from an external network confirmed approved access to Proxmox, the reverse proxy, Pi-hole administration, and selected SSH targets while selected backend and non-approved paths remained unavailable.
+
+The gateway is monitored through Checkmk and included in the Core Infrastructure scheduled backup policy.
+
+Proxmox management is intentionally excluded from the reverse-proxy migration path. Remote administration uses Tailscale instead.
+
+See [`networking/tailscale-remote-access.md`](networking/tailscale-remote-access.md).
 
 ### Development and personal applications
 
-The development VM hosts a Software Asset Management application backed by PostgreSQL. It is treated as a private user-facing application and will use the secure overlay network for remote reachability, with Nginx available for named HTTPS access.
+The development VM hosts a Software Asset Management application backed by PostgreSQL. It is treated as a private user-facing application and uses the secure overlay network for remote reachability, with Nginx available for named HTTPS access.
 
 The personal knowledge and RAG backend remains a private-first application platform built around PostgreSQL, pgvector, Markdown ingestion, and a future FastAPI query service.
 
@@ -140,7 +148,7 @@ Examples include:
 * dedicated Samba storage for backup copies outside protected workloads
 * scheduled Proxmox guest backups for infrastructure workloads
 
-The reverse-proxy container is now included in the core infrastructure backup policy. The personal knowledge and RAG backend is now included in the development backup policy. Backup creation and controlled restore validation remain distinct validation steps.
+The reverse-proxy container and remote-access gateway are included in the core infrastructure backup policy. The personal knowledge and RAG backend is included in the development backup policy. Backup creation and controlled restore validation remain distinct validation steps.
 
 See [`backup-recovery/README.md`](backup-recovery/README.md) for the architecture and recovery decision model.
 
@@ -160,7 +168,8 @@ A few principles recur throughout this environment:
 10. Reduce exposure and trust boundaries wherever practical.
 11. Keep wildcard private keys and DNS provider credentials isolated from backend applications and source control.
 12. Separate remote administrative access from application ingress.
-13. Keep public documentation useful to reviewers without exposing the live environment unnecessarily.
+13. Validate denied paths as well as permitted paths when testing access controls.
+14. Keep public documentation useful to reviewers without exposing the live environment unnecessarily.
 
 ## Current technology areas
 
@@ -172,25 +181,25 @@ A few principles recur throughout this environment:
 | Observability | Checkmk, Prometheus, Grafana, Node Exporter, PVE exporter, NUT exporter, active checks, scheduled downtime |
 | Alert delivery | Checkmk notifications, Postfix, authenticated SMTP relay, TLS, contact-group routing |
 | Data | PostgreSQL, pgvector, logical backups, query validation |
-| Network services | Pi-hole, split DNS, Samba, Nginx reverse proxy, TLS termination, planned Tailscale subnet routing |
+| Network services | Pi-hole, split DNS, Samba, Nginx reverse proxy, TLS termination, Tailscale subnet routing |
 | PKI and certificates | ACME, DNS challenge validation, wildcard certificates, certificate lifecycle management |
 | Backup and recovery | Proxmox guest backups, snapshots, Home Assistant backups, Samba backup copies, PostgreSQL dumps |
-| Security | Service accounts, exposure reduction, SSH hardening, trusted proxies, overlay VPN design, secrets handling, recovery controls |
+| Security | Service accounts, exposure reduction, SSH hardening, trusted proxies, Tailscale Grants, secrets handling, recovery controls |
 | Identity and secrets | Vaultwarden, dedicated service identities |
 | Home automation | Home Assistant OS, HACS, Zigbee, climate automation |
 | Operations | Change records, maintenance runbooks, full-environment playbooks, rollback planning, validation |
 
 ## Roadmap
 
-The dedicated reverse-proxy isolation milestone is implemented and backup coverage is now assigned. Current follow-up work includes:
+The dedicated reverse-proxy isolation milestone and initial secure remote-access deployment are implemented. Current follow-up work includes:
 
-* deploy and validate the dedicated Tailscale subnet router
+* validate successful backup creation and controlled restore behavior for newer infrastructure workloads
 * automate wildcard certificate renewal and Nginx reload
 * add certificate-expiration monitoring
 * migrate additional private web applications through the proxy where appropriate
-* validate backup creation and controlled restores for newer workloads
 * continue broader SSH hardening
 * improve independent backup resilience when additional hardware or a NAS becomes practical
+* consider redundant subnet routing after independent always-on infrastructure is available
 * add further observability depth
 
 See the [Wiki Roadmap](https://github.com/myles-portfolio/homelab-infrastructure/wiki/Roadmap) for the current priorities and planned work.
