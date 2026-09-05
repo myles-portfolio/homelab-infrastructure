@@ -2,24 +2,24 @@
 
 ## Overview
 
-Selected homelab web services are accessed through a dedicated reverse proxy rather than by exposing each backend application's port directly to users.
+Selected homelab web services are accessed through a dedicated reverse proxy rather than by exposing each backend application's listener directly to users.
 
-The reverse proxy provides a stable service name, centralized HTTPS termination, and a single routing layer between clients and internal applications.
+The reverse proxy provides stable service naming, centralized HTTPS termination, and a single routing layer between clients and internal applications.
 
 ## Current implementation
 
-A dedicated unprivileged Linux container now hosts Nginx as the centralized reverse proxy and TLS termination layer.
+A dedicated unprivileged Linux container hosts Nginx as the centralized reverse proxy and TLS termination layer.
 
 The container is intentionally narrow in scope:
 
-* Nginx provides hostname based routing and HTTPS termination
-* SSH administration uses key based authentication through a non-root administrative account
+* Nginx provides hostname-based routing and HTTPS termination
+* SSH administration uses key-based authentication through a non-root administrative account
 * unnecessary local services are disabled or removed
-* Checkmk monitors the guest through its Linux agent with TLS registration
+* Checkmk monitors the guest independently from the applications routed through it
 * ACME certificate issuance uses DNS challenge validation through a DNS provider API
-* the live wildcard private key and DNS provider credentials remain outside source control
+* live certificate private keys and DNS provider credentials remain outside source control
 
-The first service migrated through this path is the infrastructure monitoring web interface. Additional internal services will be migrated incrementally after validation and soak time.
+Service migration is staged. Monitoring was used as the first production validation target, and additional private applications are moved behind the proxy only after direct backend reachability, proxy routing, certificate behavior, and rollback options have been tested.
 
 ## Logical pattern
 
@@ -27,111 +27,106 @@ The first service migrated through this path is the infrastructure monitoring we
 Client
   |
   v
-Local DNS
+Private network reachability
+  |
+  v
+Split DNS
   |
   v
 Dedicated Nginx reverse proxy
   |
   +--> monitoring backend
-  +--> DNS administration backend, planned
-  +--> virtualization management backend, planned last
+  +--> password-management backend
+  +--> other selected private web applications
 ```
 
-Client facing service names resolve to the reverse proxy. Nginx then selects the appropriate internal backend based on the requested hostname.
+Administrative interfaces such as the hypervisor and SSH are intentionally excluded from this pattern. They use the secure overlay network directly rather than being published through Nginx.
 
 ## Why use a dedicated reverse proxy
 
 A dedicated reverse proxy provides several operational benefits:
 
-* users connect to named HTTPS services rather than memorizing host ports
+* users connect to named HTTPS services rather than backend ports
 * TLS configuration is centralized at the ingress layer
-* backend services can remain on private ports
-* certificate automation can be separated from application configuration
-* additional services can be introduced without exposing a new client-facing port for each application
+* backend services can remain private
+* certificate automation is separated from application configuration
+* additional services can be introduced without adding a new client-facing listener for each application
 * ingress maintenance is isolated from the applications being proxied
 * certificate and routing behavior can be monitored as infrastructure rather than as an incidental application feature
 
 ## Certificate strategy
 
-The reverse proxy uses a wildcard certificate that covers the public domain apex and one level of subdomains.
+The reverse proxy uses a wildcard certificate covering the public domain apex and one level of subdomains.
 
-The public repository intentionally represents this generically as:
+The public repository represents this generically as:
 
 ```text
 example.net
 *.example.net
 ```
 
-Wildcard issuance requires DNS challenge validation. An ACME client creates the temporary DNS proof through a dedicated DNS provider API credential.
-
-Conceptually:
-
-```text
-Reverse proxy
-    |
-    +--> ACME certificate request
-              |
-              v
-        DNS provider API
-              |
-              v
-       DNS challenge proof
-              |
-              v
-       wildcard certificate
-```
+Wildcard issuance uses DNS challenge validation. An ACME client creates the temporary proof through a dedicated DNS provider credential.
 
 The wildcard certificate is stored only on the reverse proxy rather than copied to every backend service. This reduces private-key distribution and centralizes certificate lifecycle management.
 
-Certificate renewal automation, automatic Nginx reload after successful renewal, and certificate-expiration monitoring remain explicit follow-up controls before the implementation is considered complete.
+Automated renewal, automatic Nginx reload after successful renewal, and certificate-expiration monitoring remain explicit lifecycle controls.
 
 ## DNS migration pattern
 
-Before migration, a service name may resolve directly to the backend application.
+Before migration, a service name may resolve directly to an application host.
 
-After migration, local DNS resolves that service name to the reverse proxy instead:
+After migration, split DNS resolves that service name to the reverse proxy instead:
 
 ```text
 Before
-service.example.net --> backend application
+service.example.net --> application host
 
 After
-service.example.net --> reverse proxy --> backend application
+service.example.net --> reverse proxy --> application backend
 ```
 
-The backend address does not become part of the user-facing access path.
+The backend address and listener are no longer part of the normal client-facing path.
 
-During the first migration, validation also identified a stale host-level DNS entry that caused two addresses to be returned for the same service name. The stale entry was removed, the local resolver was reloaded, and both direct DNS testing and the Checkmk active DNS check were validated before the change was considered complete.
+For remote clients connected through the secure overlay, split DNS provides the same private service naming model used on the LAN.
 
-## Backend isolation
+## Backend simplification
 
-The reverse proxy must know how to reach each backend service, but clients do not need direct knowledge of that backend port or address.
+Where an application previously ran its own dedicated TLS proxy, that proxy can be removed after Nginx has been validated as the sole client-facing HTTPS layer.
 
-This distinction allows the access path to evolve independently from the application process itself.
+This reduces duplicate certificate handling, duplicate proxy configuration, and unnecessary software on the application host.
 
-Where practical, backend applications continue to use encrypted transport between the reverse proxy and the application. Applications that only expose HTTP may be proxied over the trusted internal network when risk and application capability justify it.
+The migration sequence is deliberately staged:
 
-## Home Assistant considerations
+1. make the application reachable from Nginx over a private backend path
+2. validate the backend independently
+3. create and test the Nginx site without changing normal DNS
+4. change split DNS to the reverse proxy
+5. validate browser and native-client behavior from LAN and remote networks
+6. remove the previous application-local proxy only after the new path is proven
+7. remove any now-unnecessary direct overlay-network membership from the application host
 
-Applications that depend on forwarded client information must explicitly trust the expected proxy source.
+## Access-control interaction
 
-For Home Assistant, trusted-proxy configuration is kept narrowly scoped to known proxy sources rather than accepting forwarded headers from arbitrary clients.
+Nginx is not the remote-access security boundary.
 
-This protects against untrusted clients spoofing forwarded source information.
+The secure overlay controls whether a remote device can reach the private network. Nginx then provides HTTPS presentation and hostname routing for applications that use the proxy pattern.
+
+This separation prevents application ingress and infrastructure administration from becoming unnecessarily coupled.
 
 ## Validation
 
 A reverse-proxy change should be tested at several layers:
 
-1. confirm DNS resolves to the expected ingress path
+1. confirm private DNS resolves to the expected ingress path
 2. confirm HTTPS negotiation succeeds
 3. inspect certificate trust and hostname validity
 4. confirm the reverse proxy routes to the expected backend
 5. confirm the application loads and authentication works
-6. validate monitoring and active checks after the DNS path changes
-7. validate client applications or browser extensions when applicable
+6. validate native clients or browser extensions where applicable
+7. confirm monitoring reflects the new access path
+8. test from an external network through the secure overlay when the service is intended for remote use
 
-A useful pre-cutover test is to force a client request to the reverse proxy while preserving the production hostname. This validates Nginx routing and certificate behavior before local DNS is changed.
+A useful pre-cutover test is to force a single request to the reverse proxy while preserving the production hostname. This validates routing and certificate behavior before DNS is changed.
 
 ## Failure isolation
 
@@ -139,12 +134,11 @@ Common symptoms can point to different layers:
 
 | Symptom | Likely investigation area |
 |---|---|
-| Name does not resolve | DNS |
-| Multiple addresses returned unexpectedly | duplicate DNS or host-level records |
-| Connection refused | listener, firewall, or proxy service |
-| TLS warning | certificate or hostname configuration |
+| Name does not resolve | split DNS or remote DNS path |
+| Connection refused or timeout | listener, firewall, route, or access policy |
+| TLS warning | certificate chain, hostname, or incorrect ingress path |
 | 502 or 504 response | proxy-to-backend communication |
-| Login or synchronization failure | backend application or client compatibility |
+| Login or synchronization failure | backend application, proxy behavior, DNS, or client compatibility |
 | Monitoring check remains critical after migration | stale expected value, resolver path, or cached configuration |
 
 The reverse proxy should not be assumed to be the cause simply because it sits in the request path.
@@ -153,22 +147,18 @@ The reverse proxy should not be assumed to be the cause simply because it sits i
 
 If a proxy migration fails:
 
-1. restore the previous DNS destination
+1. restore the previously validated DNS destination or backend path
 2. disable the affected Nginx site configuration if needed
-3. restore the previously validated direct backend access path
-4. verify application health directly before troubleshooting the new ingress path further
-5. preserve the working certificate and credentials unless the reverse-proxy platform itself is being decommissioned
+3. verify application health directly
+4. troubleshoot the new ingress path without changing unrelated services
+5. preserve certificate and credential state unless the reverse-proxy platform itself is being rebuilt
 
 ## Remaining implementation work
 
-The dedicated reverse proxy is operational, but the broader migration is intentionally staged.
+The dedicated reverse proxy is operational and multiple private service patterns have been validated. Remaining work includes:
 
-Remaining work includes:
-
-* add the reverse-proxy container to scheduled Proxmox backup coverage and validate a successful backup
 * configure and test certificate renewal automation
 * reload Nginx automatically after successful certificate renewal
-* add certificate-expiration monitoring in Checkmk
-* migrate the DNS administration interface through the reverse proxy
-* migrate the Proxmox management interface only after additional soak time
-* continue reviewing thin-pool capacity and protection before adding larger workloads
+* add certificate-expiration monitoring
+* migrate additional private web applications where the pattern provides a clear benefit
+* continue validating application-specific proxy requirements before each migration
