@@ -2,7 +2,7 @@
 
 ## Overview
 
-This section documents the Home Assistant environment used in the homelab, including dashboard design, automation patterns, climate control, energy monitoring, backup practices, and selected configuration examples.
+This section documents the Home Assistant environment used in the homelab, including dashboard design, automation patterns, climate control, energy monitoring, backup practices, network access, and selected configuration examples.
 
 The public repository contains curated and sanitized examples rather than a mirror of the live `/config` directory. Live credentials, private endpoints, precise location data, device identifiers, alarm details, and other sensitive operational values are intentionally excluded.
 
@@ -21,6 +21,46 @@ Operational responsibilities include:
 * energy monitoring
 * local and external backup validation
 * reverse-proxy compatibility and trusted-proxy configuration
+
+## Network access and reverse proxy
+
+Home Assistant is served through the homelab's centralized Nginx reverse proxy for named HTTPS access.
+
+The sanitized access path is:
+
+```text
+Client
+  |
+  v
+Split DNS
+  |
+  v
+Dedicated Nginx reverse proxy
+  |
+  +--> wildcard TLS certificate
+  |
+  v
+Home Assistant backend
+```
+
+Home Assistant continues to listen on its private application endpoint while Nginx provides the client-facing HTTPS layer. The canonical Home Assistant service name resolves to the reverse proxy through split DNS rather than directly to the backend.
+
+Home Assistant's HTTP server is configured to trust the dedicated reverse proxy when processing forwarded client information. Trusted-proxy configuration is maintained through the supported Home Assistant network settings rather than being duplicated in the public `configuration.yaml` example.
+
+The migration demonstrated an important ordering requirement: application-side proxy trust must be validated before DNS is repointed to centralized ingress. Home Assistant rejects forwarded-header requests from untrusted proxy sources, so future proxy changes should confirm trusted-proxy state, canonical URL configuration, backend reachability, and WebSocket behavior before cutover.
+
+Post-migration validation includes:
+
+* canonical service-name resolution to Nginx
+* trusted wildcard certificate presentation
+* Home Assistant UI access through the named HTTPS endpoint
+* WebSocket connectivity
+* authentication and session behavior
+* dashboard rendering
+* integration and automation health
+* backend reachability from the proxy
+
+Exact hostnames, private addresses, trusted-proxy ranges, and backend listener details are intentionally omitted from the public repository.
 
 ## Dashboard architecture
 
@@ -99,6 +139,8 @@ The following are excluded from the public repository:
 * raw `.storage` contents
 * unsanitized device and entity inventories
 
+The sanitized `configuration.example.yaml` intentionally does not reproduce UI-managed trusted-proxy or HTTP-server settings.
+
 See [`configuration/configuration.example.yaml`](configuration/configuration.example.yaml) for a minimal sanitized configuration example.
 
 ## Design principles
@@ -108,4 +150,5 @@ See [`configuration/configuration.example.yaml`](configuration/configuration.exa
 3. **Keep automation behavior inspectable.** Scheduling, presence logic, and scripts should remain understandable and recoverable.
 4. **Treat dashboards as interfaces, not data dumps.** Frequently used actions and high-value status should be visible before deeper telemetry.
 5. **Use application-aware backups.** Hypervisor snapshots and Home Assistant backups solve different recovery problems.
-6. **Sanitize before publication.** Public examples should remain useful without exposing the live environment.
+6. **Prepare application proxy trust before DNS cutover.** Reverse-proxy migrations should validate trusted-proxy state and application-specific behavior before changing normal name resolution.
+7. **Sanitize before publication.** Public examples should remain useful without exposing the live environment.
