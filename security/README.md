@@ -25,8 +25,9 @@ Several architectural choices reduce attack surface:
 * dedicated reverse-proxy based HTTPS access
 * centralized TLS termination for selected internal services
 * avoidance of unnecessary inbound WAN port forwarding
-* backend application ports kept private where practical
+* backend application listeners kept private where practical
 * secure remote access through Tailscale rather than exposing administrative interfaces directly
+* removal of application-local TLS proxies and direct overlay membership when centralized infrastructure makes them unnecessary
 
 See [`../networking/`](../networking/) for the networking architecture that supports these controls.
 
@@ -47,30 +48,33 @@ The proxy itself is hardened as a core infrastructure workload:
 * Checkmk Linux agent registered with TLS
 * only required service listeners retained
 
-Backend migrations are staged so a DNS rollback can restore the previously validated direct path if a proxy change fails.
+Backend migrations are staged so the old path is preserved until the new proxy path has been validated.
+
+One private application migration also removed the application-local TLS proxy after Nginx had been validated as the sole client-facing HTTPS layer. This reduced duplicate certificate handling and removed an unnecessary service from the application host.
 
 ## Secure remote access
 
 Tailscale is deployed as the overlay VPN for remote administrative access.
 
-A dedicated unprivileged Debian container provides the subnet-router role. It runs separately from the hypervisor, reverse proxy, DNS service, monitoring platform, and application workloads.
+A dedicated unprivileged Linux container provides the subnet-router role. It runs separately from the hypervisor, reverse proxy, DNS service, monitoring platform, and application workloads.
 
 The implementation separates remote network access from application ingress:
 
 * Proxmox and selected SSH targets remain private and are reached through Tailscale
-* selected private web applications may use Nginx for trusted named HTTPS while Tailscale controls remote network reachability
-* Pi-hole administration is explicitly reachable through Tailscale while its DNS role remains local infrastructure
+* selected private web applications use Nginx for trusted named HTTPS while Tailscale controls remote network reachability
+* internal DNS is available to remote clients only through the private overlay so split-DNS service names continue to work outside the LAN
+* DNS administration is explicitly reachable through a restricted Tailscale path
 * backend services such as PostgreSQL, Prometheus, exporters, and monitoring agents remain LAN-only unless a documented requirement changes
 
-The gateway uses narrowly scoped TUN device access inside an unprivileged LXC rather than privileged-container deployment. IPv4 forwarding is enabled only for the required subnet-routing role.
+Tailscale Grants replace the default unrestricted allow-all rule. The current policy follows a deny-by-default approach with explicit approved paths.
 
-Tailscale Grants replace the default unrestricted allow-all rule. The current policy follows a deny-by-default approach with explicit destinations and ports for approved administrative and HTTPS paths.
+Validation was performed from an external network and included both positive and negative tests. Intended administrative and HTTPS paths succeeded, while selected backend and non-approved paths remained unavailable through Tailscale.
 
-Validation was performed from an external network and included both positive and negative tests. Intended Proxmox, reverse-proxy, Pi-hole, and selected SSH paths succeeded. A backend PostgreSQL path and an unapproved SSH path remained unavailable through Tailscale.
+Private application hosts do not require direct Tailscale membership when their remote-access path is provided through the subnet router and reverse proxy. Direct node membership is removed where it no longer provides a distinct security or operational benefit.
 
-The gateway is monitored in Checkmk and included in the Core Infrastructure scheduled guest backup policy.
+The gateway is monitored in Checkmk and included in the appropriate scheduled guest backup policy.
 
-The initial subnet router shares the existing Proxmox host. Remote access therefore depends on that host remaining online. A future second physical host or other independent always-on infrastructure device could provide redundant subnet routing if remote-access availability becomes more important.
+A future independent always-on infrastructure device could provide redundant subnet routing if remote-access availability becomes more important.
 
 See [`../networking/tailscale-remote-access.md`](../networking/tailscale-remote-access.md).
 
@@ -103,6 +107,7 @@ The public repository follows a simple rule: documentation should describe the c
 Examples of information excluded from public configuration include:
 
 * passwords
+* password hashes used for privileged application administration
 * API keys
 * certificate-provider credentials
 * private keys
@@ -112,6 +117,8 @@ Examples of information excluded from public configuration include:
 * public domains tied to the live environment
 * detailed private IP inventories
 * Tailscale authentication keys, tailnet identifiers, node addresses, and live access-policy identities
+
+When sensitive authentication material is exposed during troubleshooting, it is rotated even if the exposed value is a derived credential representation rather than plaintext.
 
 Where configuration examples require sensitive values, generic placeholders are used instead.
 
@@ -125,9 +132,9 @@ ACME validation uses a DNS-provider API credential stored outside source control
 
 ## Reverse-proxy trust
 
-Home Assistant and similar services may need to trust a reverse proxy so forwarded client information can be processed correctly.
+Applications that process forwarded client information must trust only the expected proxy source.
 
-Trusted-proxy configuration should be limited to the expected proxy source rather than broad private-network ranges whenever practical.
+Trusted-proxy configuration should be limited to known proxy sources rather than broad private-network ranges whenever practical.
 
 A misconfigured trust range can allow untrusted clients to spoof forwarded headers.
 
@@ -137,20 +144,20 @@ Security includes recoverability.
 
 The environment uses multiple backup layers depending on the workload:
 
-* Home Assistant local backups
-* Home Assistant external network backup copies
-* PostgreSQL logical dumps
+* application-level backups where supported
+* logical database dumps where useful
 * scheduled Proxmox guest backups
 * temporary Proxmox snapshots for selected maintenance windows
-* persistent Docker volumes for stateful container workloads
+* persistent application storage for stateful container workloads
+* additional network backup copies for selected services
 
-The reverse-proxy container, personal knowledge backend, and remote-access gateway are included in workload-appropriate scheduled guest backup policies. Backup creation and controlled restore validation remain separate recovery checks.
+Backup creation and controlled restore validation remain separate recovery checks.
 
 These mechanisms are not interchangeable. Each protects against a different failure mode.
 
 ## SSH hardening roadmap
 
-SSH hardening has begun with the reverse-proxy workload and establishes the pattern for broader rollout:
+SSH hardening has begun with selected infrastructure workloads and establishes the pattern for broader rollout:
 
 * disable direct root password login
 * use key-based authentication
@@ -174,7 +181,7 @@ See [`../SECURITY.md`](../SECURITY.md) for publication-specific sanitization rul
 
 Current planned improvements include:
 
-* continue SSH key-based authentication rollout beyond the reverse proxy
+* continue SSH key-based authentication rollout
 * certificate-expiration monitoring
 * automated backup restore testing
 * reverse-proxy certificate renewal and reload automation validation
