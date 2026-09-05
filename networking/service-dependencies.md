@@ -38,7 +38,7 @@ A failure at any layer can produce a similar user symptom, such as "the site is 
 | Reverse proxy | container health, Nginx, local DNS, wildcard certificate, backend reachability | host health, listeners, certificate trust, hostname routing, backend response |
 | Checkmk web access | local DNS, reverse proxy, wildcard certificate, Checkmk backend | DNS resolution, HTTPS response, proxy routing, application sign-in, active DNS check |
 | Vaultwarden | local DNS, reverse proxy, TLS certificate, Docker service, persistent application data | DNS resolution, HTTPS response, container health, client sign-in and sync |
-| Home Assistant | VM health, network path, reverse proxy where used, trusted-proxy configuration, integrations | UI access, integration availability, automation execution, backup access |
+| Home Assistant | VM health, local DNS, reverse proxy, wildcard certificate, trusted-proxy configuration, backend listener, integrations | DNS resolution, HTTPS response, WebSocket connectivity, authentication, UI access, integration availability, automation execution, backup access |
 | Pi-hole | container health, network path, upstream DNS | local resolution, upstream resolution, filtering behavior |
 | Grafana | Monitoring VM, Docker, network path, persistent Grafana data | HTTP response, dashboard access, data-source connectivity |
 | Prometheus | Monitoring VM, Docker, target network reachability, configuration file | HTTP response, active target health, query execution |
@@ -105,6 +105,39 @@ Possible failure domains:
 * application is responding but client compatibility is broken
 * persistent data is unavailable
 
+## Example: Home Assistant through centralized ingress
+
+```text
+Client
+  |
+  v
+Local DNS
+  |
+  v
+Nginx reverse proxy
+  |
+  +--> wildcard TLS certificate
+  |
+  v
+Home Assistant backend
+      |
+      +--> trusted-proxy validation
+      +--> forwarded client headers
+      +--> WebSocket API
+```
+
+Possible failure domains:
+
+* the service name still resolves directly to the backend instead of the proxy
+* Nginx does not have a matching hostname configuration
+* Nginx cannot reach the Home Assistant backend listener
+* Home Assistant does not trust the reverse-proxy source
+* forwarded-header handling is disabled or inconsistent with the proxy configuration
+* the frontend loads but WebSocket connectivity fails
+* the configured canonical application URL does not match the DNS and proxy hostname
+
+Home Assistant requires application-side reverse-proxy preparation before DNS cutover. A successful migration validates both ordinary HTTP requests and the persistent WebSocket API used by the frontend.
+
 ## Example: Home Assistant backup path
 
 ```text
@@ -154,7 +187,8 @@ When a service fails, use the dependency map to test from the outside inward:
 3. Does the proxy or ingress layer respond?
 4. Is the certificate valid for the requested hostname?
 5. Does the backend application respond directly where appropriate?
-6. Are dependent services healthy?
-7. Does the user workflow succeed end to end?
+6. Does the application trust and correctly process the ingress source where forwarded headers are used?
+7. Are dependent services healthy?
+8. Does the user workflow succeed end to end?
 
 This approach reduces the tendency to restart the application before proving which layer is actually failing.
